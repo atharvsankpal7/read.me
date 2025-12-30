@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atharv Santosh Sankpal | Full-Stack Software Engineer</title>
+  <meta name="description"
+    content="Full-Stack Software Engineer with experience building scalable SaaS products and leading end-to-end delivery." />
+
+  <style>
+    :root {
+      --bg: #fdfbf7;
+      /* Warm soft white (Creamy) */
+      --fg: #1f2937;
+      /* Dark gray for text */
+      --muted: #6b7280;
+      /* Medium gray */
+      --accent: #8b5cf6;
+      /* Soft Pastel Violet */
+      --border: #e5e7eb;
+      /* Light gray border */
+      --card-bg: #ffffff;
+      --hover-bg: rgba(139, 92, 246, 0.05);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;
+      line-height: 1.7;
+      /* Increased line height for readability */
+      font-size: 1.05rem;
+      /* Slightly larger base font */
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    /* Animated Underline */
+    a::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 1.5px;
+      bottom: -1px;
+      left: 0;
+      background-color: var(--accent);
+      transform: scaleX(0);
+      transform-origin: bottom right;
+      transition: transform 0.3s ease;
+    }
+
+    a:hover::before {
+      transform: scaleX(1);
+      transform-origin: bottom left;
+    }
+
+    /* External Link Arrow */
+    a[target="_blank"]::after {
+      content: '↗';
+      font-size: 0.85em;
+      transition: transform 0.2s ease;
+      display: inline-block;
+    }
+
+    a[target="_blank"]:hover::after {
+      transform: translate(2px, -2px);
+    }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 4px;
+      border-radius: 4px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 80px 24px;
+    }
+
+    header {
+      margin-bottom: 64px;
+    }
+
+    h1 {
+      font-size: 2.8rem;
+      margin: 0 0 12px 0;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .title {
+      font-size: 1.25rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+      font-weight: 400;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 1rem;
+      margin-bottom: 24px;
+    }
+
+    .meta span {
+      display: inline-block;
+      margin-right: 20px;
+      margin-bottom: 8px;
+    }
+
+    .links a {
+      margin-right: 18px;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    section {
+      margin-bottom: 64px;
+    }
+
+    h2 {
+      font-size: 0.9rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      font-weight: 600;
+    }
+
+    p {
+      margin: 0 0 16px 0;
+      color: #4b5563;
+      /* Gray 600 */
+      max-width: 65ch;
+      /* Optimal line length for reading */
+    }
+
+    ul {
+      padding-left: 20px;
+      margin: 0;
+    }
+
+    li {
+      margin-bottom: 10px;
+      color: #4b5563;
+      /* Gray 600 */
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      background: var(--card-bg);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
+    }
+
+    .card h3 {
+      margin: 0 0 8px 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .role {
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .duration {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding-top: 32px;
+      font-size: 0.95rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* Tabs System */
+    .tabs-container {
+      margin-bottom: 64px;
+    }
+
+    .tabs-header {
+      display: flex;
+      position: relative;
+      background: #f3f4f6;
+      /* Light gray background for tabs container */
+      border-radius: 12px;
+      padding: 6px;
+      margin-bottom: 32px;
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 12px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-family: inherit;
+      font-weight: 500;
+      border-radius: 8px;
+      transition: color 0.2s ease;
+      z-index: 2;
+      position: relative;
+      text-align: center;
+    }
+
+    .tab-btn:hover {
+      color: var(--accent);
+    }
+
+    .tab-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+
+    .tab-btn[aria-selected="true"] {
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .tab-indicator {
+      position: absolute;
+      top: 6px;
+      bottom: 6px;
+      left: 0;
+      background: var(--accent);
+      border-radius: 8px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1;
+      /* Width and transform set by JS */
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .tab-content:not([hidden]) {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Experience Item */
+    .exp-item {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      background: var(--card-bg);
+      margin-bottom: 24px;
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .exp-item::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0.5;
+    }
+
+    .exp-item:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.1);
+    }
+
+    .exp-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .exp-title h3 {
+      margin: 0 0 6px 0;
+      font-size: 1.3rem;
+      color: #111827;
+      /* Almost black */
+      font-weight: 700;
+    }
+
+    .exp-company {
+      color: var(--accent);
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    .exp-date {
+      color: var(--muted);
+      font-size: 0.95rem;
+      font-family: monospace;
+      background: rgba(0, 0, 0, 0.03);
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .exp-details {
+      margin-bottom: 24px;
+      color: #4b5563;
+      line-height: 1.8;
+    }
+
+    .tech-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .tech-badge {
+      font-size: 0.85rem;
+      padding: 6px 16px;
+      border-radius: 20px;
+      background: rgba(139, 92, 246, 0.1);
+      color: var(--accent);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      font-weight: 500;
+    }
+
+    .summary h2 {
+      margin-bottom: 0.75rem;
+    }
+
+    .summary p {
+      margin: 0 0 0.5rem 0;
+      line-height: 1.6;
+      color: #2e2e2e;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <header>
+      <h1>ATHARV SANTOSH SANKPAL</h1>
+      <div class="title">Full-Stack Software Engineer</div>
+      <div class="meta">
+        <span>✉️ 01atharvsankpal@gmail.com</span>
+        <span>📍 Pune, India</span>
+      </div>
+      <div class="links">
+        <a href="https://github.com/atharvsankpal7" target="_blank">GitHub</a>
+        <a href="https://www.linkedin.com/in/atharv-sankpal-235a7730a/" target="_blank">LinkedIn</a>
+        <a href="#" target="_blank">YouTube</a>
+      </div>
+    </header>
+
+    <section class="summary">
+      <h2>Professional Summary</h2>
+
+      <p>
+        Full-stack software engineer with hands-on experience building and leading
+        automation SaaS products at scale.
+      </p>
+
+      <p>
+        Strong background in React, Node.js, Express.js, and PostgreSQL.
+      </p>
+
+      <p>
+        Proven ability to deliver end-to-end solutions, optimize performance, and
+        own product delivery.
+      </p>
+    </section>
+
+
+
+
+    <section class="tabs-container">
+      <div class="tabs-header" role="tablist" aria-label="Experience Categories">
+        <div class="tab-indicator"></div>
+        <button class="tab-btn" role="tab" aria-selected="true" aria-controls="professional"
+          id="tab-professional">Professional Experience</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="projects" id="tab-projects">Personal
+          Projects</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="freelance"
+          id="tab-freelance">Freelance</button>
+      </div>
+
+      <!-- Professional Experience -->
+      <div class="tab-content" id="professional" role="tabpanel" aria-labelledby="tab-professional">
+
+
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3>Full-Stack Engineer Intern</h3>
+              <div class="exp-company">PeopleBlox</div>
+            </div>
+            <div class="exp-date">Sep 2025 – Present</div>
+          </div>
+          <ul class="exp-details">
+            <li>Developed end-to-end product features with frontend, backend, and SDET teams</li>
+            <li>Optimized performance bottlenecks and resolved production issues</li>
+            <li>Designed efficient SQL queries and exposed secure REST APIs</li>
+            <li>Implemented pixel-perfect UI based on design specifications</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">Next.js</span>
+            <span class="tech-badge">PostgreSQL</span>
+            <span class="tech-badge">Express.js</span>
+            <span class="tech-badge">PgBoss</span>
+            <span class="tech-badge">Streams</span>
+            <span class="tech-badge">Queues</span>
+            <span class="tech-badge">Async Tasks</span>
+            <span class="tech-badge">Google Cloud</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3>Full-Stack Tech Lead</h3>
+              <div class="exp-company">Display Promotion</div>
+            </div>
+            <div class="exp-date">Apr 2025 – Sep 2025</div>
+          </div>
+          <ul class="exp-details">
+            <li>Gathered requirements directly from clients and translated them into functional and technical designs
+            </li>
+            <li>Designed UI flows, implemented frontend features, and architected low-level backend systems</li>
+            <li>Developed, deployed, and hosted full-stack applications on VPS environments</li>
+            <li>Led end-to-end product delivery from ideation to production release</li>
+            <li>Mentored interns, reviewed implementations, and guided requirement execution</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">React</span>
+            <span class="tech-badge">Node.js</span>
+            <span class="tech-badge">VPS</span>
+            <span class="tech-badge">System Design</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3>Full-Stack Engineer Intern</h3>
+              <div class="exp-company">ByteProLabs</div>
+            </div>
+            <div class="exp-date">Jan 2025 – Mar 2025</div>
+          </div>
+          <ul class="exp-details">
+            <li>Delivered multiple full-stack projects under tight timelines</li>
+            <li>Integrated AI agents and blockchain components</li>
+            <li>Reduced system latency by 60% through backend and query optimizations</li>
+            <li>Improved system efficiency using scalable architecture decisions</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">AI Agents</span>
+            <span class="tech-badge">Blockchain</span>
+            <span class="tech-badge">Backend Optimization</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3>Full-Stack Developer Intern</h3>
+              <div class="exp-company">Display Promotion</div>
+            </div>
+            <div class="exp-date">May 2024 – Dec 2024</div>
+          </div>
+          <ul class="exp-details">
+            <li>Built scalable backend services and responsive frontend applications</li>
+            <li>Designed and documented application architecture for automation tools</li>
+            <li>Collaborated on client-driven feature development and delivery</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">Backend Services</span>
+            <span class="tech-badge">Frontend</span>
+            <span class="tech-badge">Architecture</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Personal Projects -->
+      <div class="tab-content" id="projects" role="tabpanel" aria-labelledby="tab-projects" hidden>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3>EduPrep – Mock Test Platform</h3>
+              <div class="exp-company">Personal Project</div>
+            </div>
+          </div>
+          <div class="exp-details">
+            <p>Platform for competitive exams with real-time analytics and proctoring.</p>
+          </div>
+          <div class="tech-stack">
+            <span class="tech-badge">Next.js</span>
+            <span class="tech-badge">Express.js</span>
+            <span class="tech-badge">PostgreSQL</span>
+            <span class="tech-badge">Prisma</span>
+            <span class="tech-badge">Flask</span>
+            <span class="tech-badge">OpenCV</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3>Automation SaaS</h3>
+              <div class="exp-company">Display Promotion</div>
+            </div>
+          </div>
+          <div class="exp-details">
+            <p>Internal automation platform improving operational efficiency.</p>
+          </div>
+          <div class="tech-stack">
+            <span class="tech-badge">Express.js</span>
+            <span class="tech-badge">Flask</span>
+            <span class="tech-badge">AWS</span>
+            <span class="tech-badge">MongoDB</span>
+            <span class="tech-badge">Google Maps</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3>AI Image Editing SaaS</h3>
+              <div class="exp-company">Personal Project</div>
+            </div>
+          </div>
+          <div class="exp-details">
+            <p>Multi-service AI SaaS with secure authentication and payment workflows.</p>
+          </div>
+          <div class="tech-stack">
+            <span class="tech-badge">Next.js</span>
+            <span class="tech-badge">TypeScript</span>
+            <span class="tech-badge">MongoDB</span>
+            <span class="tech-badge">Zod</span>
+            <span class="tech-badge">Stripe</span>
+            <span class="tech-badge">Cloudinary</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Freelance -->
+      <div class="tab-content" id="freelance" role="tabpanel" aria-labelledby="tab-freelance" hidden>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3><a href="https://www.sscreation.online/" target="_blank">SSCreation</a></h3>
+              <div class="exp-company">Digital Marketplace & Admin System</div>
+            </div>
+          </div>
+          <ul class="exp-details">
+            <li>Designed and created a full-stack application for selling digital items with payment integration
+              (Razorpay)</li>
+            <li>Implemented OTP auth (no login required), email support (Nodemailer), and micro-animations</li>
+            <li>Built a fully customizable admin panel allowing real-time updates to nav, content, footer, and products
+            </li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">Next.js</span>
+            <span class="tech-badge">Server Actions</span>
+            <span class="tech-badge">MongoDB</span>
+            <span class="tech-badge">ShadcnUI</span>
+            <span class="tech-badge">Razorpay</span>
+            <span class="tech-badge">Cloudinary</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3><a href="https://studiosquanta.com/" target="_blank">StudiosQuanta</a></h3>
+              <div class="exp-company">Design Implementation</div>
+            </div>
+          </div>
+          <ul class="exp-details">
+            <li>Converted Figma design into a pixel-perfect website with full responsiveness</li>
+            <li>Added custom animations and micro-animations to various sections</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">React</span>
+            <span class="tech-badge">Tailwind CSS</span>
+            <span class="tech-badge">Framer Motion</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3><a href="https://altecht.com/" target="_blank">Altecht</a></h3>
+              <div class="exp-company">Corporate Website</div>
+            </div>
+          </div>
+          <ul class="exp-details">
+            <li>Converted Figma design into a pixel-perfect, responsive website</li>
+            <li>Integrated PHP for secure form handling</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">React</span>
+            <span class="tech-badge">Tailwind CSS</span>
+            <span class="tech-badge">PHP</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3><a href="https://www.displaypromotion.in/" target="_blank">Display Promotion</a></h3>
+              <div class="exp-company">Agency Portfolio</div>
+            </div>
+          </div>
+          <ul class="exp-details">
+            <li>Developed a professional portfolio for a digital marketing agency</li>
+            <li>Integrated Spline for 3D interactive objects and MagicUI for effects</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">Next.js</span>
+            <span class="tech-badge">Spline 3D</span>
+            <span class="tech-badge">Tailwind CSS</span>
+            <span class="tech-badge">MagicUI</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3><a href="https://www.samarthbusinessgroup.com/" target="_blank">Samarth Business Group</a></h3>
+              <div class="exp-company">Business Portfolio</div>
+            </div>
+          </div>
+          <ul class="exp-details">
+            <li>Sleek and minimal portfolio for a reputed business group</li>
+            <li>Focused on simplicity and performance</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">11ty</span>
+            <span class="tech-badge">Bootstrap</span>
+            <span class="tech-badge">HTML</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3><a href="https://www.musclebuildnutrition.co.in/" target="_blank">MuscleBuild Nutrition</a></h3>
+              <div class="exp-company">E-commerce Showcase</div>
+            </div>
+          </div>
+          <ul class="exp-details">
+            <li>Online product showcase designed to drive offline sales</li>
+            <li>Includes admin panel for full customization and WhatsApp redirection</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">Next.js</span>
+            <span class="tech-badge">Admin Panel</span>
+            <span class="tech-badge">WhatsApp API</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3><a href="https://www.shubharambhevents.co.in/" target="_blank">Shubharambh Events</a></h3>
+              <div class="exp-company">Event Management</div>
+            </div>
+          </div>
+          <ul class="exp-details">
+            <li>Event management website with dynamic content</li>
+            <li>Connected to MongoDB with a full admin panel</li>
+          </ul>
+          <div class="tech-stack">
+            <span class="tech-badge">Next.js</span>
+            <span class="tech-badge">MongoDB</span>
+            <span class="tech-badge">Framer Motion</span>
+            <span class="tech-badge">Tailwind CSS</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+    <section>
+      <h2>Technical Skills</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Languages</h3>
+          <p>JavaScript, TypeScript, Java, Python, C/C++, PHP</p>
+        </div>
+        <div class="card">
+          <h3>Frontend</h3>
+          <p>React.js, Next.js, React Native, Tailwind CSS, Bootstrap</p>
+        </div>
+        <div class="card">
+          <h3>Backend</h3>
+          <p>Node.js, Express.js, Flask, Laravel</p>
+        </div>
+        <div class="card">
+          <h3>Databases</h3>
+          <p>PostgreSQL, MongoDB, SQL</p>
+        </div>
+        <div class="card">
+          <h3>Tools & Platforms</h3>
+          <p>Prisma, Zod, AWS, Docker, Git, Stripe, Cloudinary</p>
+        </div>
+        <div class="card">
+          <h3>Concepts</h3>
+          <p>REST APIs, Microservices, System Design, Performance Optimization</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Leadership & Achievements</h2>
+      <ul>
+        <li>Founding Engineer & Team Lead (Display Promotion)</li>
+        <li>Winner: Code2Compute (2023), C++ Bug Buster (2023), Code Clash (2022)</li>
+        <li>Runner-Up: Web Master (2024)</li>
+        <li>Finalist: ADCET Hackathon (2025), Codement Hackathon (2024)</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Education</h2>
+      <p>
+        B.Tech in Computer Science & Engineering<br />
+        Shivaji University<br />
+        CGPA: 8.3 | 2021 – 2025
+      </p>
+    </section>
+
+    <footer>
+      © 2025 Atharv Santosh Sankpal
+    </footer>
+  </main>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const tabs = document.querySelectorAll('.tab-btn');
+      const contents = document.querySelectorAll('.tab-content');
+      const indicator = document.querySelector('.tab-indicator');
+
+      function updateIndicator(tab) {
+        if (!tab) return;
+        indicator.style.width = `${tab.offsetWidth}px`;
+        indicator.style.transform = `translateX(${tab.offsetLeft}px)`;
+      }
+
+      // Initialize indicator position
+      const activeTab = document.querySelector('.tab-btn[aria-selected="true"]');
+      updateIndicator(activeTab);
+
+      // Update on resize
+      window.addEventListener('resize', () => {
+        const currentActive = document.querySelector('.tab-btn[aria-selected="true"]');
+        updateIndicator(currentActive);
+      });
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          // Deselect all
+          tabs.forEach(t => t.setAttribute('aria-selected', 'false'));
+          contents.forEach(c => c.hidden = true);
+
+          // Select clicked
+          tab.setAttribute('aria-selected', 'true');
+          const targetId = tab.getAttribute('aria-controls');
+          document.getElementById(targetId).hidden = false;
+
+          // Move indicator
+          updateIndicator(tab);
+        });
+      });
+    });
+  </script>
+</body>
+
+</html>
