@@ -22,6 +22,9 @@
       /* Light gray border */
       --card-bg: #ffffff;
       --hover-bg: rgba(139, 92, 246, 0.05);
+      --tab-bg: #f3f4f6;
+      --date-bg: rgba(0, 0, 0, 0.03);
+      --date-border: rgba(0, 0, 0, 0.05);
     }
 
     * {
@@ -147,7 +150,7 @@
 
     p {
       margin: 0 0 16px 0;
-      color: #4b5563;
+      color: var(--muted);
       /* Gray 600 */
       max-width: 65ch;
       /* Optimal line length for reading */
@@ -160,7 +163,7 @@
 
     li {
       margin-bottom: 10px;
-      color: #4b5563;
+      color: var(--muted);
       /* Gray 600 */
     }
 
@@ -218,7 +221,7 @@
     .tabs-header {
       display: flex;
       position: relative;
-      background: #f3f4f6;
+      background: var(--tab-bg);
       /* Light gray background for tabs container */
       border-radius: 12px;
       padding: 6px;
@@ -332,7 +335,7 @@
     .exp-title h3 {
       margin: 0 0 6px 0;
       font-size: 1.3rem;
-      color: #111827;
+      color: var(--fg);
       /* Almost black */
       font-weight: 700;
     }
@@ -347,15 +350,15 @@
       color: var(--muted);
       font-size: 0.95rem;
       font-family: monospace;
-      background: rgba(0, 0, 0, 0.03);
+      background: var(--date-bg);
       padding: 6px 14px;
       border-radius: 6px;
-      border: 1px solid rgba(0, 0, 0, 0.05);
+      border: 1px solid var(--date-border);
     }
 
     .exp-details {
       margin-bottom: 24px;
-      color: #4b5563;
+      color: var(--muted);
       line-height: 1.8;
     }
 
@@ -385,7 +388,51 @@
     .summary p {
       margin: 0 0 0.5rem 0;
       line-height: 1.6;
-      color: #2e2e2e;
+      color: var(--fg);
+    }
+  </style>
+  <style>
+    [data-theme="dark"] {
+      --bg: #111827;
+      --fg: #f3f4f6;
+      --muted: #9ca3af;
+      --accent: #a78bfa;
+      --border: #374151;
+      --card-bg: #1f2937;
+      --hover-bg: rgba(139, 92, 246, 0.15);
+      --tab-bg: rgba(255, 255, 255, 0.05);
+      --date-bg: rgba(255, 255, 255, 0.05);
+      --date-border: rgba(255, 255, 255, 0.1);
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .theme-toggle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      color: var(--fg);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+      margin-top: 8px;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
   </style>
 </head>
@@ -393,7 +440,13 @@
 <body>
   <main class="container">
     <header>
-      <h1>ATHARV SANTOSH SANKPAL</h1>
+      <div class="header-top">
+        <h1>ATHARV SANTOSH SANKPAL</h1>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Dark Mode">
+          <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <svg id="sun-icon" style="display: none;" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        </button>
+      </div>
       <div class="title">Full-Stack Software Engineer</div>
       <div class="meta">
         <span>✉️ 01atharvsankpal@gmail.com</span>
@@ -402,7 +455,7 @@
       <div class="links">
         <a href="https://github.com/atharvsankpal7" target="_blank">GitHub</a>
         <a href="https://www.linkedin.com/in/atharv-sankpal-235a7730a/" target="_blank">LinkedIn</a>
-        <a href="#" target="_blank">YouTube</a>
+        <a href="https://www.youtube.com/@atharvsankpal" target="_blank">YouTube</a>
       </div>
     </header>
 
@@ -447,7 +500,7 @@
           <div class="exp-header">
             <div class="exp-title">
               <h3>Full-Stack Engineer Intern</h3>
-              <div class="exp-company">PeopleBlox</div>
+              <div class="exp-company"><a href="https://peopleblox.io" target="_blank">PeopleBlox</a></div>
             </div>
             <div class="exp-date">Sep 2025 – Present</div>
           </div>
@@ -472,8 +525,8 @@
         <div class="exp-item">
           <div class="exp-header">
             <div class="exp-title">
-              <h3>Full-Stack Tech Lead</h3>
-              <div class="exp-company">Display Promotion</div>
+              <h3>Full-Stack Tech Lead (Contract)</h3>
+              <div class="exp-company"><a href="https://www.displaypromotion.in/" target="_blank">Display Promotion</a></div>
             </div>
             <div class="exp-date">Apr 2025 – Sep 2025</div>
           </div>
@@ -497,7 +550,7 @@
           <div class="exp-header">
             <div class="exp-title">
               <h3>Full-Stack Engineer Intern</h3>
-              <div class="exp-company">ByteProLabs</div>
+              <div class="exp-company"><a href="https://byteprolabs.com/" target="_blank">ByteProLabs</a></div>
             </div>
             <div class="exp-date">Jan 2025 – Mar 2025</div>
           </div>
@@ -518,7 +571,7 @@
           <div class="exp-header">
             <div class="exp-title">
               <h3>Full-Stack Developer Intern</h3>
-              <div class="exp-company">Display Promotion</div>
+              <div class="exp-company"><a href="https://www.displaypromotion.in/" target="_blank">Display Promotion</a></div>
             </div>
             <div class="exp-date">May 2024 – Dec 2024</div>
           </div>
@@ -542,7 +595,7 @@
         <div class="exp-item">
           <div class="exp-header">
             <div class="exp-title">
-              <h3>EduPrep – Mock Test Platform</h3>
+              <h3><a href="https://edu-prep.vercel.app/" target="_blank">EduPrep – Mock Test Platform</a></h3>
               <div class="exp-company">Personal Project</div>
             </div>
           </div>
@@ -562,7 +615,7 @@
         <div class="exp-item">
           <div class="exp-header">
             <div class="exp-title">
-              <h3>Automation SaaS</h3>
+              <h3><a href="https://github.com/atharvsankpal7/dp-todo-attendance" target="_blank">Automation SaaS</a></h3>
               <div class="exp-company">Display Promotion</div>
             </div>
           </div>
@@ -581,12 +634,32 @@
         <div class="exp-item">
           <div class="exp-header">
             <div class="exp-title">
-              <h3>AI Image Editing SaaS</h3>
+              <h3><a href="https://github.com/atharvsankpal7/AgriAI" target="_blank">AgriAI</a></h3>
               <div class="exp-company">Personal Project</div>
             </div>
           </div>
           <div class="exp-details">
-            <p>Multi-service AI SaaS with secure authentication and payment workflows.</p>
+            <p>AI-powered SaaS for government bodies and farmers. Features a CNN classification model for disease detection with 99.82% accuracy.</p>
+            <p>Implemented robust access control management for various user roles like admins and farmers.</p>
+          </div>
+          <div class="tech-stack">
+            <span class="tech-badge">Python</span>
+            <span class="tech-badge">TensorFlow/Keras</span>
+            <span class="tech-badge">CNN</span>
+            <span class="tech-badge">Full-Stack</span>
+            <span class="tech-badge">RBAC</span>
+          </div>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <div class="exp-title">
+              <h3><a href="https://github.com/atharvsankpal7/ai-image-editing-saas" target="_blank">AI Image Editing SaaS</a></h3>
+              <div class="exp-company">Personal Project</div>
+            </div>
+          </div>
+          <div class="exp-details">
+            <p>Multi-service AI SaaS featuring different multimedia model consumption provided by Cloudinary and a credit system for SaaS usage.</p>
           </div>
           <div class="tech-stack">
             <span class="tech-badge">Next.js</span>
@@ -793,7 +866,43 @@
     </footer>
   </main>
   <script>
+    // Immediate theme check to prevent flash
+    (function() {
+      const savedTheme = localStorage.getItem('theme');
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+
     document.addEventListener('DOMContentLoaded', () => {
+      // Theme Toggle Logic
+      const themeToggle = document.getElementById('theme-toggle');
+      const moonIcon = document.getElementById('moon-icon');
+      const sunIcon = document.getElementById('sun-icon');
+      const html = document.documentElement;
+
+      // Update icons based on current state
+      if (html.getAttribute('data-theme') === 'dark') {
+        moonIcon.style.display = 'none';
+        sunIcon.style.display = 'block';
+      }
+
+      themeToggle.addEventListener('click', () => {
+        const currentTheme = html.getAttribute('data-theme');
+        if (currentTheme === 'dark') {
+          html.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'light');
+          moonIcon.style.display = 'block';
+          sunIcon.style.display = 'none';
+        } else {
+          html.setAttribute('data-theme', 'dark');
+          localStorage.setItem('theme', 'dark');
+          moonIcon.style.display = 'none';
+          sunIcon.style.display = 'block';
+        }
+      });
+
       const tabs = document.querySelectorAll('.tab-btn');
       const contents = document.querySelectorAll('.tab-content');
       const indicator = document.querySelector('.tab-indicator');
