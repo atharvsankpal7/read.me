@@ -14,6 +14,8 @@
     --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     --ease: cubic-bezier(0, 0, 0.2, 1);
+    /* column width, shared with the blog (blog-studio/template/page.css) */
+    --page: 57rem;
 }
 
 *,
@@ -84,7 +86,7 @@ ul {
 
 /* ---------- page frame ---------- */
 .page {
-    max-width: 50rem;
+    max-width: var(--page);
     min-height: 100vh;
     margin: 0 auto;
     padding: 40px 0;
@@ -130,7 +132,7 @@ main {
 
 /* Blur-up entrance, same as the reference */
 .reveal {
-    animation: reveal 0.7s var(--ease) both;
+    animation: reveal 0.7s var(--ease) backwards;
 }
 
 .reveal-2 {

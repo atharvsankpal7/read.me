@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorView } from "@codemirror/view";
 import {
   AlertTriangle, Code2, Columns2, Download, FileCode2, FileText, FlaskConical, MessageSquareQuote, Palette,
-  PanelLeftClose, PanelRightClose, Plus, Rocket, Save, Settings2, Table2, Terminal,
+  PanelLeftClose, PanelRightClose, Plus, Rocket, Save, Settings2, Shapes, Table2, Terminal, Brush,
 } from "lucide-react";
 import { api } from "./api";
 import { assets } from "./assets";
@@ -13,17 +13,22 @@ import { MetaForm } from "./components/MetaForm";
 import { NewPostDialog } from "./components/NewPostDialog";
 import { Preview, type Device } from "./components/Preview";
 
-type Tab = "article" | "details" | "simHtml" | "simJs" | "simCss";
+type Tab = "article" | "details" | "simHtml" | "simJs" | "simCss" | "figJs" | "figCss";
+type FileTab = Exclude<Tab, "article" | "details">;
+const isFileTab = (t: Tab): t is FileTab => t !== "article" && t !== "details";
 const TABS: { id: Tab; label: string; icon: typeof FileText; lang?: Lang; file?: string }[] = [
   { id: "article", label: "Article", icon: FileText, lang: "markdown", file: "post.md" },
   { id: "details", label: "Details", icon: Settings2 },
   { id: "simHtml", label: "Markup", icon: Code2, lang: "html", file: "sim.html" },
   { id: "simJs", label: "Script", icon: FileCode2, lang: "javascript", file: "sim.js" },
   { id: "simCss", label: "Styles", icon: Palette, lang: "css", file: "sim.css" },
+  { id: "figJs", label: "Figures", icon: Shapes, lang: "javascript", file: "figures.js" },
+  { id: "figCss", label: "Fig styles", icon: Brush, lang: "css", file: "figures.css" },
 ];
 
 const SNIPPETS: { label: string; icon: typeof FileText; text: string }[] = [
   { label: "Simulation", icon: FlaskConical, text: "\n::simulation\n\n" },
+  { label: "Figure", icon: Shapes, text: "\n::figure my-figure What the reader should notice in this figure.\n\n" },
   { label: "Callout", icon: MessageSquareQuote, text: "\n> [!TRY] Break it\n> Describe what the reader should do in the simulation.\n\n" },
   { label: "Code", icon: Terminal, text: "\n```ts\n\n```\n" },
   { label: "Table", icon: Table2, text: "\n| Setting | Value |\n| --- | --- |\n| acks | all |\n\n" },
@@ -203,7 +208,7 @@ export default function App() {
   return (
     <div className={`app ${dragging ? "dragging" : ""}`}>
       <aside className="side">
-        <div className="logo"><span className="mark">B</span><div><b>Blog Studio</b><span>simulation posts → one HTML file</span></div></div>
+        <div className="logo"><span className="mark" aria-hidden="true" /><div><b>Blog Studio</b><span>posts → one HTML file</span></div></div>
         <button className="btn primary block" onClick={() => setCreating(true)}><Plus size={16} />New post</button>
         <div className="side-label">Posts</div>
         <ul className="posts">
@@ -249,7 +254,7 @@ export default function App() {
               <nav className="tabs">
                 {TABS.map((t) => {
                   const Icon = t.icon;
-                  const has = t.id === "simHtml" ? draft.simHtml.trim() : t.id === "simJs" ? draft.simJs.trim() : t.id === "simCss" ? draft.simCss.trim() : "";
+                  const has = isFileTab(t.id) ? draft[t.id].trim() : "";
                   return (
                     <button key={t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)} title={t.file}>
                       <Icon size={14} />{t.label}{has ? <i className="dot" /> : null}
@@ -263,8 +268,8 @@ export default function App() {
                   {SNIPPETS.map((s) => { const Icon = s.icon; return <button key={s.label} onClick={() => insert(s.text)}><Icon size={13} />{s.label}</button>; })}
                 </div>
               )}
-              {(tab === "simHtml" || tab === "simJs" || tab === "simCss") && (
-                <div className="snips file"><span>{draft.slug}/{tabInfo.file}</span>{tab === "simJs" && <span className="muted">runs with <code>root</code> and <code>Kit</code> in scope</span>}</div>
+              {isFileTab(tab) && (
+                <div className="snips file"><span>{draft.slug}/{tabInfo.file}</span>{tab === "simJs" && <span className="muted">runs with <code>root</code> and <code>Kit</code> in scope</span>}{tab === "figJs" && <span className="muted">register each figure with <code>Kit.figure(id, setup)</code></span>}</div>
               )}
               <div className="pane-body">
                 {tab === "details" ? (

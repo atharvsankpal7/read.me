@@ -1,0 +1,191 @@
+/* ==========================================================================
+   Figures: small animated panels placed through the article with `::figure <id> <caption>`.
+   They use the portfolio's own language: cream card, zinc frame lines, hatched dividers,
+   square corners, JetBrains Mono, blue (#0000cd) as the only accent, outlined buttons.
+   The component colours below are only for telling parts of a diagram apart (Kafka vs
+   Postgres vs consumers). They were checked for lightness band, colour-blind separation
+   and contrast against --f-bg.
+   figures.js reads every colour from these variables, so this file is the one place to change them.
+   ========================================================================== */
+.fig {
+  /* site theme */
+  --f-bg: var(--card, #fcfbf9);
+  --f-bg-2: var(--bg, #f8f7f4);
+  --f-line: var(--border, #e4e4e7);
+  --f-line-2: var(--border-strong, #d4d4d8);
+  --f-ink: var(--fg, #080808);
+  --f-soft: var(--fg-soft, #27272a);
+  --f-muted: var(--muted, #71717a);
+  --f-faint: var(--faint, #a1a1aa);
+  --f-accent: var(--accent, #0000cd);
+  --f-primary: var(--primary, #18181b);
+  --f-hover: var(--secondary, #f4f4f5);
+  /* status, always shown with a glyph or a word next to it (site tokens) */
+  --f-ok: var(--ok, #15803d);
+  --f-bad: var(--bad, #dc2626);
+  --f-warn: var(--warn, #b45309);
+  /* descriptive colours for diagram parts, same roles as the simulation */
+  --f-prod: #0d9488;
+  --f-kafka: #5b4fe0;
+  --f-cons: #a16207;
+  --f-dest: #c026a3;
+  --f-pg: #1d6fe0;
+  --f-retry: #c2410c;
+  --f-cp: #71717a;
+  position: relative;
+  text-align: left;
+}
+/* hex values for figures.js (it mixes in alpha, so it needs plain hex, not var() chains) */
+.fig {
+  --fx-bg: #fcfbf9; --fx-bg-2: #f8f7f4; --fx-line: #e4e4e7; --fx-line-2: #d4d4d8;
+  --fx-ink: #080808; --fx-soft: #27272a; --fx-muted: #71717a; --fx-faint: #a1a1aa; --fx-accent: #0000cd;
+  --fx-ok: #15803d; --fx-bad: #dc2626; --fx-warn: #b45309;
+  --fx-prod: #0d9488; --fx-kafka: #5b4fe0; --fx-cons: #a16207; --fx-dest: #c026a3; --fx-pg: #1d6fe0; --fx-retry: #c2410c; --fx-cp: #71717a;
+}
+/* full column width: the panel's sides sit on the page's frame lines */
+.prose > .fig { margin: 16px calc(-1 * var(--pad)); }
+
+.fig-panel {
+  background: var(--f-bg);
+  color: var(--f-soft);
+  border-top: 1px solid var(--f-line);
+  border-bottom: 1px solid var(--f-line);
+  overflow: hidden;
+  font: 400 13px/1.5 var(--mono);
+  font-variant-numeric: tabular-nums;
+  overflow-anchor: none;
+}
+.fig-fallback { margin: 0; padding: 48px 24px; color: var(--f-muted); text-align: center; background-image: var(--hatch); }
+.fig-error { margin: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--f-bad) 30%, transparent); color: var(--f-bad); background: var(--bad-soft, #dc262612); white-space: pre-wrap; font: 12px/1.5 var(--mono); }
+
+/* header row: tag + label on the left, live status on the right */
+.fig-head {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px;
+  padding: 16px 24px 2px;
+}
+.fig-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+.fig-pill {
+  color: var(--f-accent); background: var(--accent-soft, #0000cd0f); border-radius: 999px;
+  padding: 0 8px; font-size: 11px; line-height: 20px; font-weight: 500; white-space: nowrap;
+}
+.fig-label { color: var(--f-muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.fig-status { color: var(--f-muted); font-size: 12.5px; transition: color .3s ease; }
+
+/* big readout + controls */
+.fig-bar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 24px;
+  padding: 8px 24px 16px;
+}
+.fig-big { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.fig-big b { color: var(--f-ink); font-size: 30px; line-height: 1.1; font-weight: 600; letter-spacing: -0.025em; transition: color .3s ease; white-space: nowrap; }
+.fig-big span { color: var(--f-muted); font-size: 13px; }
+.fig-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* buttons follow the portfolio .btn: outlined in zinc-900, zinc-100 on hover */
+.fig-btn {
+  cursor: pointer; border: 1px solid var(--f-primary); background: transparent; color: var(--f-primary);
+  padding: 6px 12px; font: 500 12.5px/1.2 var(--mono); white-space: nowrap;
+  transition: background-color .15s var(--ease, ease), color .15s ease, border-color .15s ease;
+}
+.fig-btn:hover { background: var(--f-hover); }
+.fig-btn.primary { background: var(--f-primary); color: var(--f-bg); }
+.fig-btn.primary:hover { background: #3f3f46; border-color: #3f3f46; }
+.fig-btn:disabled { opacity: .35; cursor: not-allowed; background: transparent; }
+.fig-btn:focus-visible, .fig-seg button:focus-visible, .fig .fx-steps button:focus-visible { outline: 2px solid var(--f-accent); outline-offset: 2px; }
+.fig-seg { display: inline-flex; border: 1px solid var(--f-primary); }
+.fig-seg button {
+  cursor: pointer; border: 0; background: transparent; color: var(--f-muted); padding: 6px 11px;
+  font: 500 12.5px/1.2 var(--mono); white-space: nowrap; transition: background-color .15s ease, color .15s ease;
+}
+.fig-seg button + button { border-left: 1px solid var(--f-primary); }
+.fig-seg button:hover { color: var(--f-ink); background: var(--f-hover); }
+.fig-seg button.on { background: var(--accent-soft, #0000cd0f); color: var(--f-accent); box-shadow: inset 0 -2px 0 var(--f-accent); }
+
+/* stage: SVG scenes scale with the panel
+   and scroll sideways on phones instead of shrinking text */
+.fig-stage {
+  position: relative; padding: 18px 24px 18px; overflow-x: auto; overscroll-behavior-x: contain;
+  background: var(--f-bg-2);
+  scrollbar-width: thin; scrollbar-color: var(--f-line-2) transparent;
+}
+.fig-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.fig-svg text { font-family: var(--mono); fill: var(--f-soft); }
+.fig-foot:empty { display: none; }
+.fig-foot {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+  padding: 12px 24px 14px; border-top: 1px solid var(--f-line); color: var(--f-muted); font-size: 12px;
+}
+.fig-key { display: inline-flex; align-items: center; gap: 7px; }
+.fig-key i { width: 10px; height: 10px; display: inline-block; }
+.fig-note { color: var(--f-faint); }
+/* hatched strip between the controls and the stage, same as the page dividers */
+.fig-panel .fig-bar { border-bottom: 1px solid var(--f-line); position: relative; margin-bottom: 12px; }
+.fig-panel .fig-bar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 12px;
+  border-bottom: 1px solid var(--f-line); background-image: var(--hatch);
+}
+
+/* caption sits back inside the text column */
+.fig figcaption {
+  margin: 12px var(--pad) 0; color: var(--muted); font-size: 13px; line-height: 1.6; text-wrap: pretty;
+}
+.fig figcaption code { font-size: 12px; }
+.fig .fig-num { color: var(--fg); font-weight: 600; text-decoration: none; margin-right: 6px; }
+.fig .fig-num:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 639px) {
+  .prose > .fig { margin: 8px calc(-1 * var(--pad)); }
+  .fig figcaption { margin: 10px var(--pad) 0; }
+  .fig-head { padding: 14px 16px 2px; }
+  .fig-bar { padding: 8px 16px 12px; }
+  .fig-big b { font-size: 24px; }
+  .fig-stage { padding: 14px 16px 14px; }
+  .fig-stage.fig-wide::before { content: "swipe to see the whole figure →"; position: sticky; left: 0; display: block; margin-bottom: 6px; color: var(--f-faint); font-size: 11px; }
+  .fig-foot { padding: 10px 16px 14px; }
+}
+@media print {
+  .fig-actions { display: none; }
+}
+
+/* ---------- reusable bits for figures.js ---------- */
+/* moving dashes on an active wire */
+.fig .fx-flow { stroke-dasharray: 5 6; animation: fx-dash .7s linear infinite; }
+@keyframes fx-dash { to { stroke-dashoffset: -11; } }
+/* a label that rises and fades out */
+.fig .fx-pop { animation: fx-pop 1.6s cubic-bezier(.2, .8, .2, 1) both; transform-box: fill-box; paint-order: stroke; stroke: var(--f-bg-2); stroke-width: 4px; stroke-linejoin: round; }
+@keyframes fx-pop {
+  0% { opacity: 0; transform: translateY(5px); }
+  12% { opacity: 1; transform: none; }
+  78% { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 0; transform: translateY(-7px); }
+}
+/* narration line + step markers in the footer */
+.fig .fx-say { flex: 1 1 320px; color: var(--f-soft); font-size: 12.5px; line-height: 1.65; min-height: 3.3em; }
+.fig .fx-steps { display: inline-flex; gap: 6px; }
+.fig .fx-steps button { width: 22px; height: 6px; padding: 0; border: 1px solid var(--f-line-2); background: transparent; cursor: pointer; transition: background-color .25s ease, width .25s ease, border-color .25s ease; }
+.fig .fx-steps button.on { width: 34px; background: var(--f-accent); border-color: var(--f-accent); }
+.fig .fx-steps button:hover { border-color: var(--f-primary); }
+/* hover tooltip, like the portfolio's writing preview popover */
+.fig .fx-tip {
+  position: absolute; z-index: 2; pointer-events: none; min-width: 150px;
+  padding: 8px 11px; border: 1px solid color-mix(in srgb, var(--f-ink) 12%, transparent); border-radius: 10px; background: var(--f-bg-2);
+  color: var(--f-soft); font-size: 11.5px; line-height: 1.45; box-shadow: 0 4px 6px -1px #0000000f, 0 12px 28px -8px #00000024;
+}
+.fig .fx-tip b { color: var(--f-accent); font-size: 13px; }
+.fig .fx-tip span { color: var(--f-muted); }
+/* range slider in the actions row */
+.fig .fx-range { display: inline-flex; align-items: center; gap: 10px; color: var(--f-muted); font-size: 12px; }
+.fig .fx-range input { width: 150px; accent-color: var(--f-accent); }
+.fig .fx-range-v { min-width: 11ch; color: var(--f-soft); }
+/* text inside the panel never inherits the article's prose rhythm */
+.fig-panel p { margin: 0; line-height: 1.6; text-align: left; }
+/* SVG text that sits on top of busy fills */
+.fig .fx-halo { paint-order: stroke; stroke: var(--f-bg-2); stroke-width: 3.5px; stroke-linejoin: round; }
+
+/* ---------- text selection ----------
+   The page's ::selection (black background) only recolours HTML text; SVG labels keep their dark fill and
+   turned into black blocks. Diagram labels and controls aren't meant to be copied, so they don't select;
+   readable text (narration, tables, captions) selects with a light blue tint instead. */
+.fig-svg, .fig-svg *, .fig-head, .fig-bar, .fig-btn, .fig-seg, .fig .fx-steps, .fig-key, .fig .fx-tip {
+  -webkit-user-select: none; user-select: none;
+}
+.fig-panel ::selection, .fig figcaption ::selection, .fig figcaption::selection { background: rgba(0, 0, 205, 0.16); color: var(--f-ink); }

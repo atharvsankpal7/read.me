@@ -21,6 +21,8 @@ for (const [name, lang] of Object.entries(LANGS)) hljs.registerLanguage(name, la
 const ALIAS: Record<string, string> = { js: "javascript", jsx: "javascript", ts: "typescript", tsx: "typescript", sh: "bash", shell: "bash", zsh: "bash", py: "python", yml: "yaml", html: "xml", svg: "xml", rs: "rust", postgres: "sql", psql: "sql" };
 
 export const SIM_MARKER = /^[ \t]*::[ \t]*simulation[ \t]*$/m;
+/** `::figure <id> <caption>` places a figure registered in figures.js with Kit.figure("<id>", ...). */
+export const FIG_MARKER = /^[ \t]*::[ \t]*figure[ \t]+([a-z0-9][a-z0-9-]*)[ \t]*(.*)$/gm;
 
 export const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -99,6 +101,7 @@ export function createRenderer() {
   return {
     toc,
     render: (md: string) => marked.parse(md, { async: false }) as string,
+    inline: (md: string) => marked.parseInline(md, { async: false }) as string,
   };
 }
 

@@ -1,7 +1,8 @@
 /* ==========================================================================
    Blog page shell. Inlined into every exported post and the blog index.
    Tokens match the portfolio (build/styles.css) so posts feel like the same site:
-   one framed 50rem column, hatched dividers, JetBrains Mono, blue links.
+   one framed 57rem column (same as the portfolio's --page), hatched dividers, JetBrains Mono, blue links.
+   Figures span the full column, edge to edge with the frame lines.
    ========================================================================== */
 :root {
   color-scheme: light;
@@ -36,6 +37,7 @@
   --sans: var(--mono);
   --system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
   --pad: 40px;
+  --page: 57rem;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -61,10 +63,12 @@ button { font: inherit; color: inherit; }
 
 /* ---------- frame ---------- */
 .page {
-  max-width: 50rem; min-height: 100vh; margin: 0 auto; padding: 80px 0 0;
+  max-width: var(--page); min-height: 100vh; margin: 0 auto; padding: 80px 0 0;
   display: flex; flex-direction: column; gap: 40px;
   border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-  animation: reveal .7s var(--ease) both;
+  /* backwards, not both: a finished animation must not leave a transform behind, or .page would
+     become the containing block for position: fixed (the side toc) */
+  animation: reveal .7s var(--ease) backwards;
 }
 @keyframes reveal { from { opacity: 0; filter: blur(10px); transform: translateY(20px); } }
 .hatch { height: 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background-image: var(--hatch); }
@@ -108,13 +112,35 @@ button { font: inherit; color: inherit; }
 
 /* ---------- table of contents ---------- */
 .toc { padding: var(--pad); border-bottom: 1px solid var(--border); }
-.toc h2 { margin: 0; font-size: 16px; font-weight: 500; }
+.toc h2 { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 700; letter-spacing: -0.025em; color: var(--fg); }
 .toc ol { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .toc a { display: block; padding-left: 16px; color: var(--muted); text-decoration: none; transition: color .15s ease; }
 .toc a::before { content: "•\00a0\00a0"; }
 .toc a.sub { padding-left: 32px; }
 .toc a.sub::before { content: "◦\00a0\00a0"; }
 .toc a:hover, .toc a.active { color: var(--fg); }
+
+/* wide screens: the toc moves into the empty gutter right of the column and follows the reader.
+   It needs ~230px of gutter, so it only happens from 1380px up; below that it stays under the title. */
+@media (min-width: 1380px) {
+  .toc {
+    position: fixed; z-index: 10; top: 96px;
+    left: calc(50% + var(--page) / 2 + 32px);
+    width: min(260px, (100vw - var(--page)) / 2 - 56px);
+    max-height: calc(100vh - 160px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+    padding: 0; border: 0;
+    transition: opacity .25s var(--ease), visibility .25s;
+  }
+  .toc h2 { font-size: 14px; line-height: 1.4; }
+  .toc ol { margin-top: 14px; gap: 0; border-left: 1px solid var(--border); }
+  .toc a { position: relative; padding: 5px 0 5px 14px; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; hyphens: auto; }
+  .toc a::before, .toc a.sub::before { content: none; }
+  .toc a.sub { padding-left: 26px; font-size: 12.5px; }
+  .toc a.active { color: var(--accent); }
+  .toc a.active::after { content: ""; position: absolute; left: -1px; top: 4px; bottom: 4px; width: 2px; background: var(--accent); }
+  /* the full simulation breaks out of the column, so the toc steps aside while it is on screen */
+  .toc.away { opacity: 0; visibility: hidden; }
+}
 
 /* ---------- prose ---------- */
 .article { padding: var(--pad); min-width: 0; }

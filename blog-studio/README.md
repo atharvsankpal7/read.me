@@ -15,6 +15,7 @@ npm run dev          # opens the studio at http://localhost:5178
    - **Article**: markdown. Put a line with just `::simulation` where the interactive block should go.
    - **Details**: title, subtitle, date, tags, simulation heading/hint, draft flag.
    - **Markup / Script / Styles**: the simulation (`sim.html`, `sim.js`, `sim.css`).
+   - **Figures / Figure styles**: small animated figures placed through the article (`figures.js`, `figures.css`).
 3. The preview rebuilds as you type. Switch device width and light/dark at the top. Errors and `console.log` from the simulation appear in the **Console** drawer.
 4. **Ctrl+S** saves. **Export to blogs/** (Ctrl+Shift+S) writes `build/blogs/<slug>.html` and rebuilds `build/blogs/index.html`.
 
@@ -33,10 +34,13 @@ posts/<slug>/post.md     frontmatter + markdown
 posts/<slug>/sim.html    simulation markup (inserted into the lab block)
 posts/<slug>/sim.js      simulation script
 posts/<slug>/sim.css     simulation-specific styles / colour tokens
+posts/<slug>/figures.js  the figures, one Kit.figure(id, setup) per `::figure` line
+posts/<slug>/figures.css figure-specific styles
 site.config.json         author, links, blog title, output folder
 template/page.css        the post page design (shared with the blog index)
 template/kit.css         UI building blocks for simulations
 template/page.js         page runtime + the Kit API
+template/figure.css      the figure panel, its chrome and colours
 starters/                what "New post" copies from
 ```
 
@@ -45,6 +49,7 @@ Editing anything in `template/` changes every post on the next export. The previ
 ## Markdown extras
 
 - `::simulation` places the lab. Without it, the lab goes before the first `##` heading.
+- `::figure <id> <caption>` places a figure. Figures are numbered in order and the caption takes inline markdown.
 - Callouts: `> [!NOTE]`, `[!TIP]`, `[!TRY]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`. Text after the tag becomes the title (`> [!TRY] Break it`).
 - Fenced code is syntax-highlighted at export time (js, ts, json, bash, sql, python, go, yaml, html, css, java, rust) and gets a copy button.
 - `##` and `###` headings get anchor links and go into the "Table of Contents" block under the title.
@@ -74,6 +79,43 @@ Page tokens you can use in `sim.css` and `Kit.colors`: `--fg --fg-soft --muted -
 
 Kit CSS classes for the simulation UI (all scoped to the lab): `.toolbar`, `.btn` (`.primary`, `.danger`, `.ghost`, `.sm`), `.sep`, `.push`, `.stats > .stat(.ok|.warn|.bad) > b + span`, `.workspace` (stage + 360px side panel), `.stage`, `.legend`, `.hint`, `.panel` (with `h2`, `.role`, `h3`, `label`, `label.check`, inputs), `dl.kv`, `table.t`, `ul.pods`, `.row`, `.statusgrid`, `.callout`, `.chip`, `.log`. The starter simulation in `starters/simulation/` uses most of them.
 
+## Writing figures
+
+A post can have one big simulation and any number of small figures, one per idea, the way long-form engineering posts break a system down. Each `::figure <id>` line becomes a panel in the site style (card, zinc frame, hatched divider) that breaks out of the text column a little, with a caption underneath. `figures.js` fills it:
+
+```js
+Kit.figure("acks", f => {
+  f.chrome({ tag: "kafka · replication", label: "what an ack is worth" }); // pill + label header, big readout, actions, stage, foot
+  f.status("waiting");                       // right side of the header
+  f.big("0", "acked logs lost");             // the big number and its unit
+  f.button("▶ replay", run, { primary: true });
+  const mode = f.segmented([["1", "acks=1"], ["all", "acks=all"]], "1", run);
+  const svg = f.svg(880, 260, { minWidth: 660 }); // scales with the panel, scrolls sideways on phones
+  function run() {
+    f.run(async s => {                       // starting a new run cancels the old one
+      await s.tween(600, t => { /* t goes 0 → 1, eased */ });
+      await s.wait(400);
+    });
+  }
+  f.onEnter(run);                            // first time the figure is mostly on screen
+});
+```
+
+| | |
+| --- | --- |
+| `f.chrome(o)` | builds the header (`o.tag`, `o.label`), big readout, `f.actions`, `f.stage` and `f.foot` |
+| `f.run(fn)` / `f.stop()` | async sequence with `s.wait(ms)` and `s.tween(ms, fn, ease)`; replays cancel cleanly |
+| `f.loop(fn)` | per-frame `fn(dt, timeMs)` |
+| `f.onEnter(fn)` | autoplay hook |
+| `Kit.h` / `Kit.s` | build HTML / SVG elements: `Kit.s("rect", { x: 0, width: 10, onclick: fn }, [children])` |
+| `Kit.pointAt(path, t)` | point along an SVG path, for dots that travel along wires |
+| `Kit.ease` | `linear`, `out`, `inOut` |
+
+Each figure has its own clock that only runs while it is on screen, so a figure you scrolled past picks up where it left off. With reduced motion, tweens jump straight to their end state; waits still happen, so sequences step instead of glide. `template/figure.css` also has `.fx-flow` (moving dashes on a wire), `.fx-pop` (a label that rises and fades), `.fx-say`, `.fx-steps`, `.fx-tip`, `.fx-range` and `.fig-key` for figure UIs.
+
 ## Theme
+
+The studio itself (`src/styles.css`) uses the same tokens as the portfolio and the posts, and the code editor uses the same syntax colours as code blocks in posts (`template/hljs.css`). Figures are light panels in the same style; their colours live in `template/figure.css` and `figures.js` reads them from there.
+
 
 The portfolio and the blog are light only (cream background, JetBrains Mono, blue links, hatched dividers). The studio preview can still force dark mode, and `Kit.onTheme` fires when it does, so simulations can keep their dark tokens.

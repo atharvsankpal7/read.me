@@ -1,4 +1,4 @@
-import { createRenderer, escapeHtml as esc, icon, readingMinutes, splitAtSimulation, SIM_MARKER } from "./markdown.ts";
+import { createRenderer, escapeHtml as esc, FIG_MARKER, icon, readingMinutes, splitAtSimulation, SIM_MARKER } from "./markdown.ts";
 import type { Assets, BuildOptions, PostMeta, PostSource, PostSummary, SiteConfig, TocItem } from "./types.ts";
 
 const FONTS =
@@ -40,6 +40,25 @@ export const initials = (name: string) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
 
 export const hasSimulation = (p: Pick<PostSource, "simHtml" | "simJs">) => !!(p.simHtml.trim() || p.simJs.trim());
+
+interface FigureRef { id: string; caption: string }
+const FIG_SLOT = /<div data-fig-slot="(\d+)"><\/div>/g;
+
+/** Swaps `::figure` lines for placeholder divs that survive markdown rendering; collects the figures in order. */
+function extractFigures(md: string, figs: FigureRef[]) {
+  return md.replace(FIG_MARKER, (_, id: string, caption: string) => {
+    figs.push({ id, caption: caption.trim() });
+    return `\n<div data-fig-slot="${figs.length - 1}"></div>\n`;
+  });
+}
+
+function figureHtml(f: FigureRef, n: number, inline: (md: string) => string) {
+  const cap = f.caption ? ` ${inline(f.caption)}` : "";
+  return `<figure class="fig" id="figure-${esc(f.id)}" data-figure="${esc(f.id)}">
+<div class="fig-panel"><p class="fig-fallback">Figure ${n} is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-${esc(f.id)}">Figure ${n}</a>${cap}</figcaption>
+</figure>`;
+}
 
 function head(title: string, description: string, site: SiteConfig, css: string, extra: { url?: string; date?: string; type: string }) {
   const url = extra.url ? `<link rel="canonical" href="${esc(extra.url)}"><meta property="og:url" content="${esc(extra.url)}">` : "";
@@ -127,31 +146,36 @@ export function buildPostHtml(src: PostSource, site: SiteConfig, assets: Assets,
   const warnings: string[] = [];
   const sim = hasSimulation(src);
   const r = createRenderer();
+  const figs: FigureRef[] = [];
+  const render = (md: string) => r.render(extractFigures(md, figs)).replace(FIG_SLOT, (_, i) => figureHtml(figs[+i], +i + 1, r.inline));
 
   let article: string;
   const toc: TocItem[] = [];
   if (sim) {
     const [before, after] = splitAtSimulation(src.body);
     if (!SIM_MARKER.test(src.body)) warnings.push("No `::simulation` line in the article, so the simulation is placed before the first `##` heading.");
-    const a = r.render(before);
+    const a = render(before);
     toc.push(...r.toc.splice(0));
-    const b = after.trim() ? r.render(after) : "";
+    const b = after.trim() ? render(after) : "";
     article = (a.trim() ? `<div class="prose">\n${a}</div>\n` : "") + labHtml(src) + (b ? `\n<div class="prose">\n${b}</div>` : "");
     toc.push({ id: "simulation", text: meta.simTitle || "Simulation", depth: 2 }, ...r.toc);
   } else {
     if (SIM_MARKER.test(src.body)) warnings.push("The article has a `::simulation` line but the post has no simulation code.");
-    article = `<div class="prose">\n${r.render(src.body.replace(SIM_MARKER, ""))}</div>`;
+    article = `<div class="prose">\n${render(src.body.replace(SIM_MARKER, ""))}</div>`;
     toc.push(...r.toc);
   }
 
   const minutes = readingMinutes(src.body);
   const description = meta.subtitle || `${meta.title}, by ${site.author}`;
   const url = site.siteUrl ? `${site.siteUrl.replace(/\/$/, "")}/${site.blogPath ?? "blogs/"}${src.slug}.html` : undefined;
-  const css = [assets.pageCss, assets.hljsCss, sim ? assets.kitCss : "", src.simCss].filter(Boolean).join("\n");
+  const figures = figs.length > 0;
+  if (figures && !src.figJs.trim()) warnings.push("The article has `::figure` lines but figures.js is empty.");
+  const css = [assets.pageCss, assets.hljsCss, sim ? assets.kitCss : "", figures ? assets.figureCss : "", src.simCss, figures ? src.figCss : ""]
+    .filter(Boolean).join("\n");
   const showToc = meta.toc !== false;
 
   const tags = (meta.tags ?? []).map((t) => `<li class="tag">${esc(t)}</li>`).join("");
-  const liveTag = sim ? `<li class="tag live">Interactive</li>` : "";
+  const liveTag = sim || figures ? `<li class="tag live">Interactive</li>` : "";
   const date = meta.date ? `<time datetime="${esc(meta.date)}">${formatDate(meta.date)}</time> · ` : "";
 
   const htmlAttrs = opts.forceTheme ? ` data-theme="${opts.forceTheme}" data-force-theme` : "";
@@ -192,6 +216,16 @@ try {
 ${safeScript(src.simJs)}
 })(window.Kit.root, window.Kit);
 } catch (err) { window.Kit.fail(err); }
+</script>` : ""}
+${figures ? `<script>
+/* figures: ${esc(src.slug)} */
+try {
+(function (Kit) {
+"use strict";
+${safeScript(src.figJs)}
+})(window.Kit);
+} catch (err) { console.error(err); }
+window.Kit.figuresReady();
 </script>` : ""}
 </body>
 </html>

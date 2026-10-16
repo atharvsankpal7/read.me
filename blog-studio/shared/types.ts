@@ -16,15 +16,20 @@ export interface PostMeta {
   draft?: boolean;
 }
 
-/** A post as the studio edits it. On disk: posts/<slug>/post.md (+ sim.html, sim.js, sim.css). */
+/** A post as the studio edits it. On disk: posts/<slug>/post.md (+ sim.html, sim.js, sim.css, figures.js, figures.css). */
 export interface PostSource {
   slug: string;
   meta: PostMeta;
-  /** Markdown body (no frontmatter). Put a line with just `::simulation` where the lab should go. */
+  /** Markdown body (no frontmatter). Put a line with just `::simulation` where the lab should go,
+   *  and `::figure <id> <caption>` lines where figures go. */
   body: string;
   simHtml: string;
   simJs: string;
   simCss: string;
+  /** figures.js: registers the small animated figures placed with `::figure <id>` lines. */
+  figJs: string;
+  /** figures.css: styles for those figures. */
+  figCss: string;
 }
 
 export interface PostSummary {
@@ -61,6 +66,7 @@ export interface Assets {
   kitCss: string;
   hljsCss: string;
   pageJs: string;
+  figureCss: string;
 }
 
 export interface BuildOptions {
