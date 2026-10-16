@@ -1,49 +1,62 @@
-/* Blog page runtime: theme, reading progress, toc, code copy, lab chrome, and the Kit API for simulations. */
+/* Blog page runtime: reading progress, back to top, toc, previews, code copy, lab chrome, and the Kit API for simulations. */
 (function () {
   "use strict";
   var doc = document, root = doc.documentElement;
-  var store = {
-    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked */ } }
-  };
 
-  /* ---------- theme (shares the "theme" key with the portfolio) ---------- */
+  /* ---------- theme ----------
+     The site is light only. The studio preview can force a theme via data-theme, and Kit.onTheme
+     listeners still fire when that attribute changes. */
   var themeListeners = [];
   function currentTheme() { return root.getAttribute("data-theme") === "dark" ? "dark" : "light"; }
-  function applyTheme(t) {
-    if (currentTheme() === t && root.hasAttribute("data-theme")) return;
-    root.setAttribute("data-theme", t);
-  }
   new MutationObserver(function () {
     var t = currentTheme();
     themeListeners.slice().forEach(function (fn) { try { fn(t); } catch (e) { console.error(e); } });
   }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
-  if (!root.hasAttribute("data-force-theme")) {
-    var mq = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
-    if (mq) {
-      var onSys = function (e) { if (!store.get("theme")) applyTheme(e.matches ? "dark" : "light"); };
-      mq.addEventListener ? mq.addEventListener("change", onSys) : mq.addListener(onSys);
-    }
-  }
-  doc.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
-    b.addEventListener("click", function () {
-      var next = currentTheme() === "dark" ? "light" : "dark";
-      store.set("theme", next); applyTheme(next);
-    });
-  });
 
-  /* ---------- top bar + reading progress ---------- */
-  var bar = doc.querySelector(".topbar"), prog = doc.querySelector(".progress"), ticking = false;
+  /* ---------- reading progress + back to top ---------- */
+  var prog = doc.querySelector(".progress"), toTop = doc.querySelector(".to-top"), ticking = false;
   function onScroll() {
     if (ticking) return; ticking = true;
     requestAnimationFrame(function () {
       ticking = false;
       var y = window.scrollY, max = Math.max(1, doc.documentElement.scrollHeight - innerHeight);
-      if (bar) bar.classList.toggle("scrolled", y > 8);
-      if (prog) prog.style.transform = "scaleX(" + Math.min(1, y / max).toFixed(4) + ")";
+      if (prog) prog.style.width = (Math.min(1, y / max) * 100).toFixed(2) + "%";
+      if (toTop) toTop.classList.toggle("show", y > 400);
     });
   }
   addEventListener("scroll", onScroll, { passive: true }); onScroll();
+  if (toTop) toTop.addEventListener("click", function () { scrollTo({ top: 0, behavior: "smooth" }); });
+
+  /* ---------- writing previews (blog index) ---------- */
+  var previewLinks = doc.querySelectorAll(".post-link[data-preview-body]");
+  if (previewLinks.length && window.matchMedia && matchMedia("(hover: hover)").matches) {
+    var pop = doc.createElement("div"), current = null;
+    pop.className = "popover"; pop.setAttribute("aria-hidden", "true");
+    pop.innerHTML = '<h3></h3><p class="meta"></p><p class="body"></p>';
+    doc.body.appendChild(pop);
+    var show = function (a) {
+      current = a;
+      pop.querySelector("h3").textContent = a.textContent.trim();
+      pop.querySelector(".meta").textContent = [a.dataset.previewDate, a.dataset.previewMinutes && a.dataset.previewMinutes + " min read"].filter(Boolean).join(" · ");
+      pop.querySelector(".body").textContent = a.dataset.previewBody;
+      var r = a.getBoundingClientRect(), gap = 8, h = pop.offsetHeight;
+      var top = r.bottom + gap + h <= innerHeight ? r.bottom + gap : r.top - gap - h;
+      pop.style.top = Math.max(8, top) + "px";
+      pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 16)) + "px";
+      pop.classList.add("show");
+    };
+    var hide = function () { current = null; pop.classList.remove("show"); };
+    previewLinks.forEach(function (a) {
+      a.addEventListener("mouseenter", function () { show(a); });
+      a.addEventListener("focus", function () { show(a); });
+      a.addEventListener("mouseleave", hide);
+      a.addEventListener("blur", hide);
+    });
+    addEventListener("scroll", function () {
+      if (!current) return;
+      if (current.matches(":hover") || current === doc.activeElement) show(current); else hide();
+    }, { passive: true });
+  }
 
   /* ---------- toc highlight ---------- */
   var tocLinks = [].slice.call(doc.querySelectorAll(".toc a"));
@@ -103,7 +116,8 @@
   var Kit = {
     version: 1,
     root: doc.querySelector(".lab-body"),
-    font: { sans: '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif', mono: '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace' },
+    /* canvas text was laid out for a proportional face; mono overflows the diagram boxes */
+    font: { sans: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', mono: '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace' },
     get theme() { return currentTheme(); },
     reducedMotion: !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches),
     /* read one CSS custom property, e.g. Kit.css("--accent") */

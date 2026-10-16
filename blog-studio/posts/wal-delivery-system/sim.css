@@ -5,8 +5,8 @@
   --surface-2: var(--bg-2);
   --ink: var(--fg);
   --line: var(--border-strong);
-  --grid: #ebe6dc;
-  --shadow: rgba(76, 29, 149, 0.09);
+  --grid: #e7e5df;
+  --shadow: rgba(0, 0, 0, 0.06);
   --prod: #0d9488;
   --kafka: #4f46e5;
   --cons: #ca8a04;

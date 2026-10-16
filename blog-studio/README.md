@@ -1,6 +1,6 @@
 # Blog Studio
 
-A local React app for writing blog posts that come with an interactive simulation. Every post exports to **one self-contained HTML file** in `../blogs/`, styled to match the portfolio, with no runtime dependencies besides Google Fonts.
+A local React app for writing blog posts that come with an interactive simulation. Every post exports to **one self-contained HTML file** in `../build/blogs/`, styled to match the portfolio, with no runtime dependencies besides Google Fonts.
 
 ```bash
 cd blog-studio
@@ -16,14 +16,14 @@ npm run dev          # opens the studio at http://localhost:5178
    - **Details**: title, subtitle, date, tags, simulation heading/hint, draft flag.
    - **Markup / Script / Styles**: the simulation (`sim.html`, `sim.js`, `sim.css`).
 3. The preview rebuilds as you type. Switch device width and light/dark at the top. Errors and `console.log` from the simulation appear in the **Console** drawer.
-4. **Ctrl+S** saves. **Export to blogs/** (Ctrl+Shift+S) writes `blogs/<slug>.html` and rebuilds `blogs/index.html`.
+4. **Ctrl+S** saves. **Export to blogs/** (Ctrl+Shift+S) writes `build/blogs/<slug>.html` and rebuilds `build/blogs/index.html`.
 
 You can also export without the UI:
 
 ```bash
 npm run export -- wal-delivery-system   # one post
 npm run export -- --all                 # every non-draft post
-npm run export -- --index               # just blogs/index.html
+npm run export -- --index               # just build/blogs/index.html
 ```
 
 ## Files
@@ -47,7 +47,7 @@ Editing anything in `template/` changes every post on the next export. The previ
 - `::simulation` places the lab. Without it, the lab goes before the first `##` heading.
 - Callouts: `> [!NOTE]`, `[!TIP]`, `[!TRY]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`. Text after the tag becomes the title (`> [!TRY] Break it`).
 - Fenced code is syntax-highlighted at export time (js, ts, json, bash, sql, python, go, yaml, html, css, java, rust) and gets a copy button.
-- `##` and `###` headings get anchor links and go into the "On this page" sidebar.
+- `##` and `###` headings get anchor links and go into the "Table of Contents" block under the title.
 
 ## Writing a simulation
 
@@ -76,4 +76,4 @@ Kit CSS classes for the simulation UI (all scoped to the lab): `.toolbar`, `.btn
 
 ## Theme
 
-Posts read the same `localStorage.theme` key as the portfolio's dark-mode toggle, so a reader's choice carries over between the portfolio and the blog.
+The portfolio and the blog are light only (cream background, JetBrains Mono, blue links, hatched dividers). The studio preview can still force dark mode, and `Kit.onTheme` fires when it does, so simulations can keep their dark tokens.

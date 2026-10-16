@@ -31,6 +31,8 @@ export interface PostSummary {
   slug: string;
   meta: PostMeta;
   hasSim: boolean;
+  /** Estimated reading time, used by the blog index previews. */
+  minutes?: number;
   /** Path of the exported file relative to the repo, when it exists. */
   exported: string | null;
   updatedAt: number;
@@ -68,6 +70,8 @@ export interface BuildOptions {
   forceTheme?: "light" | "dark";
   /** Restore this scroll position after load (preview only). */
   scrollY?: number;
+  /** Older and newer published posts, for the Previous / Next links under the article. */
+  neighbors?: { prev?: { slug: string; title: string }; next?: { slug: string; title: string } };
 }
 
 export interface TocItem {

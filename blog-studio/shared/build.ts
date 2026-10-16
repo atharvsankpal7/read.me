@@ -3,25 +3,27 @@ import type { Assets, BuildOptions, PostMeta, PostSource, PostSummary, SiteConfi
 
 const FONTS =
   '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
-  '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">';
+  '<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">';
 
-/* Runs before first paint so there is no light/dark flash. Same "theme" key as the portfolio. */
+/* The site is light only, like the portfolio. The studio preview can still force a theme. */
 const THEME_INIT =
-  "(function(){var r=document.documentElement;if(r.hasAttribute('data-force-theme'))return;var t=null;try{t=localStorage.getItem('theme')}catch(e){}" +
-  "if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';r.setAttribute('data-theme',t)})();";
+  "(function(){var r=document.documentElement;if(!r.hasAttribute('data-force-theme'))r.setAttribute('data-theme','light')})();";
 
 const FAVICON =
   "data:image/svg+xml," +
-  encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#6d28d9"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#g)"/><circle cx="16" cy="16" r="5" fill="#fff"/></svg>');
+  encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" fill="#0000cd"/><circle cx="16" cy="16" r="5" fill="#f8f7f4"/></svg>');
 
 const I = {
-  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
-  sun: '<circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2M12 20.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1.5 12h2M20.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>',
   expand: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
   shrink: '<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>',
-  arrowLeft: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  arrowUpLeft: '<path d="M7 17V7h10"/><path d="M17 17 7 7"/>',
+  arrowUpRight: '<line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>',
   arrowUp: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+  chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+  chevronRight: '<path d="m9 18 6-6-6-6"/>',
 };
+
+const HATCH = '<div class="hatch" aria-hidden="true"></div>';
 
 /** "</script" inside inlined code would end the script tag early. */
 const safeScript = (js: string) => js.replace(/<\/(script)/gi, "<\\/$1");
@@ -50,7 +52,7 @@ function head(title: string, description: string, site: SiteConfig, css: string,
 <meta name="author" content="${esc(site.author)}">
 <meta property="og:type" content="${extra.type}"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}">${url}${pub}
 <meta name="twitter:card" content="summary">
-<meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0f1420" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f8f7f4">
 <link rel="icon" href="${FAVICON}">
 <script>${THEME_INIT}</script>
 ${FONTS}
@@ -60,14 +62,8 @@ ${safeStyle(css)}
 </head>`;
 }
 
-function topbar(site: SiteConfig, indexHref: string | null) {
-  const crumb = indexHref ? `<span class="crumb">/ <a href="${indexHref}">${esc(site.blogTitle)}</a></span>` : "";
-  return `<header class="topbar">
-  <a class="brand" href="${esc(site.homeUrl)}"><span class="dot"></span>${esc(site.homeLabel || site.author)}</a>${crumb}
-  <span class="spacer"></span>
-  <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">${icon(I.moon, "moon")}${icon(I.sun, "sun")}</button>
-  <div class="progress" aria-hidden="true"></div>
-</header>`;
+function backLink(href: string, label: string) {
+  return `<div class="back"><a href="${esc(href)}">${icon(I.arrowUpLeft)} ${esc(label)}</a></div>`;
 }
 
 /** Preview-only helper: forwards console output and errors to the studio, keeps scroll between rebuilds. */
@@ -86,9 +82,21 @@ document.addEventListener("click",function(e){var a=e.target.closest&&e.target.c
 
 function tocHtml(items: TocItem[]) {
   if (items.length < 2) return "";
-  return `<aside class="toc" aria-label="On this page"><nav><h2>On this page</h2><ol>${items
+  return `<nav class="toc" aria-label="Table of contents"><h2>Table of Contents</h2><ol>${items
     .map((t) => `<li><a href="#${t.id}"${t.depth > 2 ? ' class="sub"' : ""}>${esc(t.text)}</a></li>`)
-    .join("")}</ol></nav></aside>`;
+    .join("")}</ol></nav>`;
+}
+
+function pagerHtml(n: BuildOptions["neighbors"]) {
+  const link = (p: { slug: string; title: string } | undefined, cls: "prev" | "next") => {
+    if (!p) return "<span></span>";
+    const dir = cls === "prev" ? `${icon(I.chevronLeft)}<span>Previous</span>` : `<span>Next</span>${icon(I.chevronRight)}`;
+    return `<a class="${cls}" href="./${esc(p.slug)}.html"><div class="dir">${dir}</div><p class="title">${esc(p.title)}</p></a>`;
+  };
+  if (!n?.prev && !n?.next) {
+    return `<nav class="pager" aria-label="More writing"><a class="prev" href="./"><div class="dir">${icon(I.chevronLeft)}<span>Back</span></div><p class="title">All writing</p></a></nav>`;
+  }
+  return `<nav class="pager" aria-label="More writing">${link(n.prev, "prev")}${link(n.next, "next")}</nav>`;
 }
 
 function labHtml(src: PostSource) {
@@ -144,7 +152,7 @@ export function buildPostHtml(src: PostSource, site: SiteConfig, assets: Assets,
 
   const tags = (meta.tags ?? []).map((t) => `<li class="tag">${esc(t)}</li>`).join("");
   const liveTag = sim ? `<li class="tag live">Interactive</li>` : "";
-  const date = meta.date ? `<span class="sep"></span><time datetime="${esc(meta.date)}">${formatDate(meta.date)}</time>` : "";
+  const date = meta.date ? `<time datetime="${esc(meta.date)}">${formatDate(meta.date)}</time> · ` : "";
 
   const htmlAttrs = opts.forceTheme ? ` data-theme="${opts.forceTheme}" data-force-theme` : "";
   const html = `<!doctype html>
@@ -152,24 +160,27 @@ export function buildPostHtml(src: PostSource, site: SiteConfig, assets: Assets,
 ${head(`${meta.title} | ${site.author}`, description, site, css, { url, date: meta.date, type: "article" })}
 <body>
 ${opts.preview ? previewBridge(opts.scrollY ?? 0) : ""}
-${topbar(site, "./")}
-<div class="layout">
-<header class="hero">
-  ${tags || liveTag ? `<ul class="tags">${liveTag}${tags}</ul>` : ""}
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<div class="progress" aria-hidden="true"></div>
+<article class="page">
+${backLink(site.homeUrl, "Home")}
+<div class="post">
+${HATCH}
+<header class="post-head">
   <h1>${esc(meta.title)}</h1>
+  <p class="meta">${date}${minutes} min read · By ${esc(site.author)}</p>
   ${meta.subtitle ? `<p class="lede">${esc(meta.subtitle)}</p>` : ""}
-  <div class="meta"><span class="author"><span class="avatar" aria-hidden="true">${esc(initials(site.author))}</span>${esc(site.author)}</span>${date}<span class="sep"></span><span>${minutes} min read</span></div>
-  <hr class="hero-rule">
+  ${tags || liveTag ? `<ul class="tags">${liveTag}${tags}</ul>` : ""}
 </header>
+${HATCH}
 ${showToc ? tocHtml(toc) : ""}
-<article class="article">
+<div class="article" id="main-content">
 ${article}
-</article>
 </div>
-<footer class="post-foot">
-  <div class="author-card"><span class="avatar" aria-hidden="true">${esc(initials(site.author))}</span><p><strong>${esc(site.author)}</strong>${esc(site.authorBio || site.authorRole || "")}</p></div>
-  <nav class="foot-links"><a href="./">${icon(I.arrowLeft)}All posts</a><a href="${esc(site.homeUrl)}">${esc(site.homeLabel || site.author)}</a><a href="#top" onclick="scrollTo({top:0,behavior:'smooth'});return false">Back to top ${icon(I.arrowUp)}</a></nav>
-</footer>
+</div>
+${pagerHtml(opts.neighbors)}
+</article>
+<button class="to-top" type="button" aria-label="Back to top">${icon(I.arrowUp)}</button>
 <script>
 ${safeScript(assets.pageJs)}
 </script>
@@ -194,12 +205,14 @@ export function buildIndexHtml(posts: PostSummary[], site: SiteConfig, assets: A
     .sort((a, b) => (b.meta.date || "").localeCompare(a.meta.date || ""));
   const items = list
     .map((p) => {
-      const tags = [p.hasSim ? `<li class="tag live">Interactive</li>` : "", ...(p.meta.tags ?? []).map((t) => `<li class="tag">${esc(t)}</li>`)].join("");
-      return `<li><a class="post-card" href="./${esc(p.slug)}.html">
-  <h2>${esc(p.meta.title)}</h2>
-  ${p.meta.subtitle ? `<p>${esc(p.meta.subtitle)}</p>` : ""}
-  <div class="meta">${p.meta.date ? `<time datetime="${esc(p.meta.date)}">${formatDate(p.meta.date)}</time>` : ""}${tags ? `<ul class="tags">${tags}</ul>` : ""}</div>
-</a></li>`;
+      const preview = [
+        p.meta.date ? ` data-preview-date="${esc(formatDate(p.meta.date))}"` : "",
+        p.minutes ? ` data-preview-minutes="${p.minutes}"` : "",
+        p.meta.subtitle ? ` data-preview-body="${esc(p.meta.subtitle)}"` : "",
+      ].join("");
+      return `<li><a class="post-link" href="./${esc(p.slug)}.html"${preview}><span>${esc(p.meta.title)}</span><span class="arrow">${icon(I.arrowUpRight)}</span></a>${
+        p.meta.date ? `<p class="date"><time datetime="${esc(p.meta.date)}">${esc(p.meta.date)}</time></p>` : ""
+      }</li>`;
     })
     .join("\n");
   const url = site.siteUrl ? `${site.siteUrl.replace(/\/$/, "")}/${site.blogPath ?? "blogs/"}` : undefined;
@@ -208,18 +221,21 @@ export function buildIndexHtml(posts: PostSummary[], site: SiteConfig, assets: A
 <html lang="en">
 ${head(`${site.blogTitle} | ${site.author}`, desc, site, assets.pageCss, { url, type: "website" })}
 <body>
-${topbar(site, null)}
-<main class="layout">
-<header class="hero">
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<main class="page" id="main-content">
+${backLink(site.homeUrl, "Home")}
+<div class="post">
+${HATCH}
+<header class="post-head">
   <h1>${esc(site.blogTitle)}</h1>
   <p class="lede">${esc(desc)}</p>
-  <hr class="hero-rule">
 </header>
-<div class="article">
-  <ul class="index-list">
-${items || `<li><p style="color:var(--muted)">Nothing published yet.</p></li>`}
-  </ul>
+${HATCH}
 </div>
+<ul class="index-list">
+${items || `<li><p style="color:var(--muted)">Nothing published yet.</p></li>`}
+</ul>
+<div class="post">${HATCH}<div class="index-end"></div></div>
 </main>
 <script>
 ${safeScript(assets.pageJs)}
