@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildIndexHtml, buildPostHtml, hasSimulation } from "../shared/build.ts";
 import { parseFrontmatter, serializeFrontmatter } from "../shared/frontmatter.ts";
+import { readingMinutes } from "../shared/markdown.ts";
 import type { Assets, PostSource, PostSummary, SiteConfig } from "../shared/types.ts";
 
 export const STUDIO_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,6 +26,7 @@ export function loadAssets(): Assets {
     kitCss: read(path.join(TEMPLATE_DIR, "kit.css")),
     hljsCss: read(path.join(TEMPLATE_DIR, "hljs.css")),
     pageJs: read(path.join(TEMPLATE_DIR, "page.js")),
+    figureCss: read(path.join(TEMPLATE_DIR, "figure.css")),
   };
 }
 
@@ -45,20 +47,21 @@ export function listPosts(): PostSummary[] {
   return fs
     .readdirSync(POSTS_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory() && SLUG_RE.test(d.name))
-    .map((d) => {
+    .map((d): PostSummary | null => {
       const dir = path.join(POSTS_DIR, d.name);
       const md = path.join(dir, "post.md");
       if (!fs.existsSync(md)) return null;
-      const { meta } = parseFrontmatter(read(md));
-      const files = ["post.md", "sim.html", "sim.js", "sim.css"].map((f) => path.join(dir, f)).filter(fs.existsSync);
+      const { meta, body } = parseFrontmatter(read(md));
+      const files = ["post.md", "sim.html", "sim.js", "sim.css", "figures.js", "figures.css"].map((f) => path.join(dir, f)).filter(fs.existsSync);
       const out = outFile(d.name, site);
       return {
         slug: d.name,
         meta,
         hasSim: hasSimulation({ simHtml: read(path.join(dir, "sim.html")), simJs: read(path.join(dir, "sim.js")) }),
+        minutes: readingMinutes(body),
         exported: fs.existsSync(out) ? path.relative(path.resolve(STUDIO_DIR, ".."), out).replace(/\\/g, "/") : null,
         updatedAt: Math.max(...files.map((f) => fs.statSync(f).mtimeMs)),
-      } satisfies PostSummary;
+      };
     })
     .filter((p): p is PostSummary => !!p)
     .sort((a, b) => (b.meta.date || "").localeCompare(a.meta.date || "") || b.updatedAt - a.updatedAt);
@@ -69,7 +72,8 @@ export function readPost(slug: string): PostSource {
   const dir = path.join(POSTS_DIR, slug);
   if (!fs.existsSync(path.join(dir, "post.md"))) throw new HttpError(404, `No post "${slug}"`);
   const { meta, body } = parseFrontmatter(read(path.join(dir, "post.md")));
-  return { slug, meta, body, simHtml: read(path.join(dir, "sim.html")), simJs: read(path.join(dir, "sim.js")), simCss: read(path.join(dir, "sim.css")) };
+  return { slug, meta, body, simHtml: read(path.join(dir, "sim.html")), simJs: read(path.join(dir, "sim.js")), simCss: read(path.join(dir, "sim.css")),
+    figJs: read(path.join(dir, "figures.js")), figCss: read(path.join(dir, "figures.css")) };
 }
 
 export function writePost(src: PostSource) {
@@ -77,7 +81,7 @@ export function writePost(src: PostSource) {
   const dir = path.join(POSTS_DIR, src.slug);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, "post.md"), serializeFrontmatter(src.meta, src.body));
-  for (const [file, text] of [["sim.html", src.simHtml], ["sim.js", src.simJs], ["sim.css", src.simCss]] as const) {
+  for (const [file, text] of [["sim.html", src.simHtml], ["sim.js", src.simJs], ["sim.css", src.simCss], ["figures.js", src.figJs], ["figures.css", src.figCss]] as const) {
     const p = path.join(dir, file);
     if (text.trim()) fs.writeFileSync(p, text);
     else if (fs.existsSync(p)) fs.rmSync(p);
@@ -97,6 +101,8 @@ export function createPost(slug: string, title: string, starter: "simulation" | 
     simHtml: read(path.join(sdir, "sim.html")),
     simJs: read(path.join(sdir, "sim.js")),
     simCss: read(path.join(sdir, "sim.css")),
+    figJs: read(path.join(sdir, "figures.js")),
+    figCss: read(path.join(sdir, "figures.css")),
   };
   writePost(src);
   return src;
@@ -109,10 +115,19 @@ export function writeIndex(site = loadSite(), assets = loadAssets()) {
   return file;
 }
 
+/** Published posts are listed newest first, so "previous" is the next-older one. */
+function neighborsOf(slug: string) {
+  const list = listPosts().filter((p) => !p.meta.draft && (p.exported || p.slug === slug));
+  const i = list.findIndex((p) => p.slug === slug);
+  if (i < 0) return undefined;
+  const pick = (p?: (typeof list)[number]) => (p ? { slug: p.slug, title: p.meta.title } : undefined);
+  return { prev: pick(list[i + 1]), next: pick(list[i - 1]) };
+}
+
 export function exportPost(slug: string) {
   const site = loadSite(), assets = loadAssets();
   const src = readPost(slug);
-  const built = buildPostHtml(src, site, assets);
+  const built = buildPostHtml(src, site, assets, { neighbors: neighborsOf(slug) });
   const file = outFile(slug, site);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, built.html);

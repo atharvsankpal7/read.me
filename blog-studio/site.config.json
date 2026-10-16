@@ -6,7 +6,7 @@
   "homeLabel": "Atharv Sankpal",
   "blogTitle": "Writing",
   "blogDescription": "Notes on systems I've built, each with an interactive simulation you can poke at.",
-  "outputDir": "../blogs",
+  "outputDir": "../build/blogs",
   "siteUrl": "",
   "blogPath": "blogs/"
 }
