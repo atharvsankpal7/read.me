@@ -665,6 +665,7 @@ button { font: inherit; color: inherit; }
   .fig-stage { padding: 14px 16px 14px; }
   .fig-stage.fig-wide::before { content: "swipe to see the whole figure →"; position: sticky; left: 0; display: block; margin-bottom: 6px; color: var(--f-faint); font-size: 11px; }
   .fig-foot { padding: 10px 16px 14px; }
+  .fig-narr { padding: 10px 16px 12px; }
 }
 @media print {
   .fig-actions { display: none; }
@@ -684,10 +685,17 @@ button { font: inherit; color: inherit; }
 }
 /* narration line + step markers in the footer */
 .fig .fx-say { flex: 1 1 320px; color: var(--f-soft); font-size: 12.5px; line-height: 1.65; min-height: 3.3em; }
+.fig .fx-say > b:first-child { color: var(--f-ink); font-weight: 600; margin-right: 4px; }
 .fig .fx-steps { display: inline-flex; gap: 6px; }
 .fig .fx-steps button { width: 22px; height: 6px; padding: 0; border: 1px solid var(--f-line-2); background: transparent; cursor: pointer; transition: background-color .25s ease, width .25s ease, border-color .25s ease; }
+.fig .fx-steps button.done { background: var(--f-line-2); }
 .fig .fx-steps button.on { width: 34px; background: var(--f-accent); border-color: var(--f-accent); }
 .fig .fx-steps button:hover { border-color: var(--f-primary); }
+/* f.steps(): dots + narration between the stage and the foot; the play / pause button keeps its width */
+.fig-narr { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 18px; padding: 12px 24px 14px; border-top: 1px solid var(--f-line); }
+.fig-narr .fx-steps { margin-top: 7px; }
+.fig .fx-player { display: inline-flex; gap: 8px; }
+.fig-btn.fx-toggle { min-width: 11ch; }
 /* hover tooltip, like the portfolio's writing preview popover */
 .fig .fx-tip {
   position: absolute; z-index: 2; pointer-events: none; min-width: 150px;
@@ -1291,7 +1299,8 @@ button { font: inherit; color: inherit; }
       loop: function (fn) { frames.push(fn); },
       /* first time the figure is mostly on screen; replays start from here */
       onEnter: function (fn) { if (entered) fn(); else enter.push(fn); },
-      /* run an async sequence; starting a new one cancels the old. s.wait(ms), s.tween(ms, fn, ease) */
+      /* run an async sequence; starting a new one cancels the old. s.wait(ms), s.tween(ms, fn, ease).
+         With s.fast set, waits resolve at once and tweens jump to their end (used to skip to a step). */
       run: function (fn) {
         if (token) token.dead = true;
         var tk = token = { dead: false };
@@ -1302,10 +1311,13 @@ button { font: inherit; color: inherit; }
             j.tk = tk; j.start = f.time; j.res = res; jobs.push(j);
           });
         };
+        var now = function () { return tk.dead ? Promise.reject(CANCEL) : Promise.resolve(); };
         var s = {
+          fast: false,
           get alive() { return !tk.dead; },
-          wait: function (ms) { return add({ dur: ms }); },
+          wait: function (ms) { return s.fast ? now() : add({ dur: ms }); },
           tween: function (ms, cb, ease) {
+            if (s.fast) { if (!tk.dead) cb(1); return now(); }
             if (f.reducedMotion) { cb(1); return s.wait(Math.min(ms, 120)); }
             return add({ dur: ms, cb: cb, ease: ease || Kit.ease.inOut });
           },
@@ -1313,6 +1325,96 @@ button { font: inherit; color: inherit; }
         return Promise.resolve().then(function () { return fn(s); }).catch(function (e) { if (e !== CANCEL) f.fail(e); });
       },
       stop: function () { if (token) token.dead = true; jobs = []; },
+      /* step-by-step playback: prev / play-pause / next buttons, step dots and a narration line.
+         list: [{ title, text, play: async s => {} }], text can be a function. Going to step i runs o.reset(),
+         replays steps 0..i-1 with s.fast (no waiting), then plays step i, so every play() has to reach the
+         same end state at any speed. o.enter(i) runs as step i starts. Autoplay starts when the figure
+         comes into view, moves on o.gap ms after each step and stops after the last one. */
+      steps: function (list, o) {
+        o = o || {};
+        var last = list.length - 1, index = 0, auto = false, busy = false, started = false;
+        var player = Kit.h("div", { class: "fx-player", role: "group", "aria-label": "Steps" });
+        f.actions.appendChild(player);
+        var prev = f.button("← prev", function () { go(index - 1); }, { parent: player });
+        var toggle = f.button("", function () { if (auto) pause(); else play(); }, { primary: true, parent: player });
+        var next = f.button("next →", function () { go(index + 1); }, { parent: player });
+        toggle.classList.add("fx-toggle");
+        prev.setAttribute("aria-label", "Previous step"); next.setAttribute("aria-label", "Next step");
+        var dots = Kit.h("span", { class: "fx-steps" }), say = Kit.h("span", { class: "fx-say", "aria-live": "polite" });
+        list.forEach(function (st, i) {
+          dots.appendChild(Kit.h("button", { type: "button", "aria-label": "Step " + (i + 1) + ": " + st.title, onclick: function () { go(i); } }));
+        });
+        panel.insertBefore(Kit.h("div", { class: "fig-narr" }, [dots, say]), f.foot || null);
+
+        function sync() {
+          var replay = !auto && started && index === last && !busy;
+          prev.disabled = index === 0; next.disabled = index === last;
+          toggle.textContent = auto ? "❚❚ pause" : replay ? "↻ replay" : "▶ play";
+          toggle.setAttribute("aria-label", auto ? "Pause autoplay" : replay ? "Replay from the first step" : "Play the steps");
+          [].forEach.call(dots.children, function (b, k) {
+            b.classList.toggle("on", k === index); b.classList.toggle("done", k < index);
+            if (k === index) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+          });
+        }
+        function label(i) {
+          index = i;
+          var st = list[i], text = typeof st.text === "function" ? st.text() : st.text;
+          say.replaceChildren(Kit.h("b", { text: st.title }), " " + (text || ""));
+          sync();
+        }
+        function from(s, k) {
+          label(k); busy = true; sync();
+          if (o.enter) o.enter(k);
+          return s.wait(o.lead == null ? 250 : o.lead).then(function () { return list[k].play(s); }).then(function () {
+            busy = false;
+            if (k === last) auto = false;
+            sync();
+            if (!auto) return;
+            return s.wait(o.gap == null ? 1500 : o.gap).then(function () { if (auto) return from(s, k + 1); });
+          });
+        }
+        /* go to step i and play it; keep = leave autoplay as it is (otherwise a manual jump pauses it) */
+        function go(i, keep) {
+          i = Math.max(0, Math.min(last, i));
+          if (!keep) auto = false;
+          started = true; busy = true; label(i);
+          return f.run(function (s) {
+            if (o.reset) o.reset();
+            s.fast = true;
+            var p = Promise.resolve();
+            list.slice(0, i).forEach(function (st) { p = p.then(function () { return st.play(s); }); });
+            return p.then(function () { s.fast = false; return from(s, i); });
+          });
+        }
+        function play() {
+          auto = true;
+          if (busy) { sync(); return; }
+          go(!started || index === last ? 0 : index + 1, true);
+        }
+        function pause() { auto = false; sync(); }
+        /* the figure moved itself (a scrub, a slider): stop, pause, and call step i the current one */
+        function seek(i) {
+          f.stop(); auto = false; busy = false; started = true;
+          label(Math.max(0, Math.min(last, i)));
+        }
+        f.el.addEventListener("keydown", function (e) {
+          var t = e.target;
+          if (e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t === f.stage) return;
+          if (e.key === "ArrowLeft" && index > 0) { e.preventDefault(); go(index - 1); }
+          else if (e.key === "ArrowRight" && index < last) { e.preventDefault(); go(index + 1); }
+        });
+        if (o.reset) o.reset();
+        label(0);
+        if (o.enter) o.enter(0);
+        f.onEnter(function () { if (!started && o.autoplay !== false) play(); });
+        return {
+          go: go, play: play, pause: pause, seek: seek,
+          next: function () { go(index + 1); }, prev: function () { go(index - 1); },
+          /* replay the current step, e.g. after a scenario control changed */
+          redo: function () { go(index, true); },
+          get index() { return index; }, get auto() { return auto; }, get length() { return list.length; },
+        };
+      },
       fail: function (err) {
         console.error(err);
         panel.prepend(Kit.h("pre", { class: "fig-error", text: "Figure \"" + f.id + "\" hit an error.\n\n" + (err && (err.stack || err.message) || err) }));
@@ -2591,6 +2693,9 @@ function pop(layer, x, y, text, color = C.ink, o = {}) {
   return t;
 }
 
+/* fn after ms on the figure's clock, without holding up the sequence; dropped if a newer run replaces it */
+const later = (s, ms, fn) => s.wait(ms).then(fn, () => {});
+
 /* deterministic random numbers so replays look the same */
 function rng(seed) {
   return () => {
@@ -2652,14 +2757,8 @@ Kit.figure("overview", f => {
   };
   const tick = (i, on) => N.dests[i].state(on ? "ok" : "idle");
 
-  const route = f.segmented([["direct", "direct"], ["outbox", "needs processing"]], "direct", () => go(0, true), { label: "Route" });
-  const prev = f.button("◀", () => go(Math.max(0, cur - 1)), {});
-  const play = f.button("▶ replay", () => go(0, true), { primary: true });
-  const next = f.button("▶", () => go(Math.min(STEPS.length - 1, cur + 1)), {});
-  prev.setAttribute("aria-label", "Previous step"); next.setAttribute("aria-label", "Next step");
-  const dots = h("span", { class: "fx-steps" });
-  const say = h("span", { class: "fx-say" });
-  f.foot.append(dots, say);
+  /* flipping the route replays the current step the other way (intake looks the same, so start at route) */
+  const route = f.segmented([["direct", "direct"], ["outbox", "needs processing"]], "direct", () => steps.go(Math.max(1, steps.index), true), { label: "Route" });
 
   const viaOutbox = () => route.value === "outbox";
   const STEPS = [
@@ -2746,51 +2845,35 @@ Kit.figure("overview", f => {
       async play(s) {
         lit(W.kafkaCons, C.accent);
         await travel(s, fx, W.kafkaCons, C.accent, 500, { reverse: true, r: 4 });
-        N.kafka.text("orders · committed 42", C.ink);
+        N.kafka.text(`${viaOutbox() ? "payments" : "orders"} · committed 42`, C.ink);
         pop(fx, 460, 98, "✓ offset committed", OKT);
         await s.wait(600);
       },
     },
   ];
-  STEPS.forEach((st, i) => {
-    const b = h("button", { type: "button", "aria-label": `Step ${i + 1}: ${st.title}`, onclick: () => go(i) });
-    dots.appendChild(b);
-  });
 
-  let cur = 0;
-  function paint(i) {
+  /* before step 1: nothing written, nothing delivered */
+  function reset() {
     fx.replaceChildren();
-    const outbox = viaOutbox(), st = STEPS[i];
-    const on = typeof st.on === "function" ? st.on() : st.on;
-    const all = ["gen", "prod", "cp", "outbox", "kafka", "cons"];
-    all.forEach(k => N[k].state(on.includes(k) ? "on" : "idle"));
-    N.outbox.state(on.includes("outbox") ? "on" : outbox ? "idle" : "dim");
+    const outbox = viaOutbox();
     W.prodOutbox.style.opacity = W.outboxKafka.style.opacity = outbox ? 1 : 0.35;
     W.prodKafka.style.opacity = outbox ? 0.35 : 1;
-    Object.values(W).flat().forEach(w => lit(w));
-    [0, 1, 2].forEach(r => fillReplica(r, i > 2));
-    [0, 1, 2].forEach(d => { tick(d, i > 3); if (i <= 3 && on.includes("d" + d)) N.dests[d].state("on"); });
-    N.outbox.text(i > 2 && outbox ? "stored ✓" : "postgres · pg-boss", i > 2 && outbox ? OKT : C.muted);
+    [0, 1, 2].forEach(r => fillReplica(r, false));
+    [0, 1, 2].forEach(d => tick(d, false));
+    N.outbox.text("postgres · pg-boss");
     N.kafka.text(outbox ? "payments · offset 42" : "orders · offset 42");
-    N.kafka.label.textContent = "kafka";
+  }
+  /* each step lights the boxes it is about */
+  function enter(i) {
+    fx.replaceChildren();
+    const st = STEPS[i], on = typeof st.on === "function" ? st.on() : st.on;
+    ["gen", "prod", "cp", "outbox", "kafka", "cons"].forEach(k => N[k].state(on.includes(k) ? "on" : "idle"));
+    if (!on.includes("outbox") && !viaOutbox()) N.outbox.state("dim");
+    N.dests.forEach((d, k) => { if (on.includes("d" + k)) d.state("on"); });
+    Object.values(W).flat().forEach(w => lit(w));
     f.big(`${i + 1}/${STEPS.length}`, st.title);
-    say.textContent = st.text();
-    [...dots.children].forEach((b, k) => b.classList.toggle("on", k === i));
-    prev.disabled = i === 0; next.disabled = i === STEPS.length - 1;
   }
-  function go(i, all = false) {
-    play.textContent = "▶ replay";
-    f.run(async s => {
-      for (let k = i; k < (all ? STEPS.length : i + 1); k++) {
-        cur = k; paint(k);
-        await s.wait(250);
-        await STEPS[k].play(s);
-        if (all && k < STEPS.length - 1) await s.wait(1500);
-      }
-    });
-  }
-  paint(0);
-  f.onEnter(() => go(0, true));
+  const steps = f.steps(STEPS, { reset, enter });
 });
 
 /* ======================================================================
@@ -2825,120 +2908,164 @@ Kit.figure("config", f => {
   });
 
   let version = 12;
-  const setBadge = (p, v, flash) => {
+  const setBadge = (s, p, v, flash) => {
     p.version = v;
     p.badgeT.textContent = v ? "v" + v : "—";
     p.badgeT.style.fill = v === version ? C.ink : C.muted;
     p.badgeR.style.stroke = flash ? C.ok : C.line2;
     p.badgeR.style.fill = flash ? C.ok + "22" : C.bg;
-    if (flash) setTimeout(() => { p.badgeR.style.stroke = C.line2; p.badgeR.style.fill = C.bg; }, 900);
+    if (flash) later(s, 900, () => { p.badgeR.style.stroke = C.line2; p.badgeR.style.fill = C.bg; });
   };
   const count = () => {
     const n = PODS.filter(p => p.version === version).length;
     f.big(`${n} / 4`, `pods on v${version}`, n === 4 ? OKT : C.ink);
   };
+  /* before step 1: every pod caches v12 */
   const reset = () => {
+    version = 12;
     fx.replaceChildren();
     [cp, kafka, lb].forEach(n => n.state("idle"));
+    cp.text("config v12");
+    PODS.forEach(p => { p.node.state("idle"); p.node.text("cache"); setBadge(null, p, 12); });
+    count(); f.status("producers and consumers cache config in memory");
+  };
+  const enter = () => {
+    fx.replaceChildren();
     recon.forEach(w => lit(w));
-    PODS.forEach(p => { lit(p.push); lit(p.peer); p.node.state("idle"); p.node.text("cache"); });
+    PODS.forEach(p => { lit(p.push); lit(p.peer); });
   };
 
-  const drops = f.segmented([["0", "pushes arrive"], ["2", "2 pushes dropped"]], "2", () => {}, { label: "Pushes" });
-  f.button("▶ publish config", () => publish(), { primary: true });
-  f.button("▶ restart a pod, control plane down", () => outage());
+  /* changing the drops shows the push step again */
+  const drops = f.segmented([["0", "pushes arrive"], ["2", "2 pushes dropped"]], "2", () => steps.go(1, true), { label: "Pushes" });
+  const lost = () => drops.value === "2" ? [1, 3] : [];
+  const lostNames = () => lost().map(i => PODS[i].name).join(" and ");
   f.foot.append(
     h("span", { class: "fig-key" }, [h("i", { style: `background:${C.cp}` }), "push"]),
     h("span", { class: "fig-key" }, [h("i", { style: `background:${C.muted}` }), "poll fallback"]),
     h("span", { class: "fig-key" }, [h("i", { style: `background:${C.accent}` }), "peer fetch through the load balancer"]),
   );
 
-  function publish() {
-    f.run(async s => {
-      reset();
-      if (version > 12 && PODS.some(p => p.version !== version)) PODS.forEach(p => setBadge(p, version));
-      version++;
-      count();
-      cp.state("on"); cp.text(`saving v${version}…`, C.soft);
-      f.status(`reconciling v${version} with kafka`);
-      lit(recon[0], C.cp);
-      await travel(s, fx, recon[0], C.cp, 600);
-      kafka.state("on"); pop(fx, 725, 88, "✓ topics in sync", OKT);
-      lit(recon[1], C.kafka);
-      await travel(s, fx, recon[1], C.kafka, 600);
-      kafka.state("idle"); lit(recon[0]); lit(recon[1]);
-      cp.text(`config v${version} · reconciled`, C.ink);
-      f.status(`pushing v${version} to producers and consumers`);
-      const lost = drops.value === "2" ? [1, 3] : [];
-      await Promise.all(PODS.map(async (p, i) => {
-        lit(p.push, C.cp);
-        if (lost.includes(i)) {
-          await travel(s, fx, p.push, C.cp, 800, { to: 0.62 });
-          const pt = Kit.pointAt(p.push, 0.62);
-          pop(fx, pt.x, pt.y - 10, "✕ push lost", BADT);
-          lit(p.push);
-          return;
-        }
-        await travel(s, fx, p.push, C.cp, 800);
-        p.node.state("on"); setBadge(p, version, true); count();
-      }));
-      if (lost.length) {
-        f.status(`${lost.map(i => PODS[i].name).join(" and ")} missed the push · polling`, WARNT);
-        lost.forEach(i => PODS[i].node.text("polling…", WARNT));
-        await s.wait(900);
-        await Promise.all(lost.map(async i => {
+  const victim = PODS[3], peer = PODS[2];
+  const STEPS = [
+    {
+      title: "reconcile",
+      text: "The control plane saves config v13. First it reconciles the topics with Kafka.",
+      async play(s) {
+        version = 13;
+        PODS.forEach(p => setBadge(s, p, p.version));
+        count();
+        cp.state("on"); cp.text(`saving v${version}…`, C.soft);
+        f.status(`reconciling v${version} with kafka`);
+        lit(recon[0], C.cp);
+        await travel(s, fx, recon[0], C.cp, 600);
+        kafka.state("on"); pop(fx, 725, 88, "✓ topics in sync", OKT);
+        lit(recon[1], C.kafka);
+        await travel(s, fx, recon[1], C.kafka, 600);
+        kafka.state("idle"); lit(recon[0]); lit(recon[1]);
+        cp.text(`config v${version} · reconciled`, C.ink);
+      },
+    },
+    {
+      title: "push",
+      text: () => lost().length
+        ? "Then it pushes v13 to every producer and consumer pod. Two of the pushes get lost on the way."
+        : "Then it pushes v13 to every producer and consumer pod. Each pod keeps the config in memory.",
+      async play(s) {
+        f.status(`pushing v${version} to producers and consumers`);
+        await Promise.all(PODS.map(async (p, i) => {
+          lit(p.push, C.cp);
+          if (lost().includes(i)) {
+            await travel(s, fx, p.push, C.cp, 800, { to: 0.62 });
+            const pt = Kit.pointAt(p.push, 0.62);
+            pop(fx, pt.x, pt.y - 10, "✕ push lost", BADT);
+            lit(p.push);
+            return;
+          }
+          await travel(s, fx, p.push, C.cp, 800);
+          p.node.state("on"); setBadge(s, p, version, true); count();
+        }));
+        cp.state("idle");
+        if (lost().length) f.status(`${lostNames()} missed the push`, WARNT);
+        else f.status(`every pod serves v${version} from memory`, OKT);
+      },
+    },
+    {
+      title: "poll",
+      text: () => lost().length
+        ? `${lostNames()} missed the push. Their poll fallback asks the control plane and gets v13.`
+        : "Every push arrived, so no pod needs the poll fallback this time.",
+      async play(s) {
+        if (!lost().length) { await s.wait(600); return; }
+        f.status(`${lostNames()} poll the control plane`, WARNT);
+        lost().forEach(i => PODS[i].node.text("polling…", WARNT));
+        await s.wait(500);
+        await Promise.all(lost().map(async i => {
           const p = PODS[i];
           lit(p.push, C.muted);
           await travel(s, fx, p.push, C.muted, 650, { reverse: true, r: 4 });
           await travel(s, fx, p.push, C.cp, 650);
-          p.node.state("on"); p.node.text("cache"); setBadge(p, version, true); count();
+          p.node.state("on"); p.node.text("cache"); setBadge(s, p, version, true); count();
           pop(fx, p.x + 90, 140, "✓ poll", OKT);
         }));
-      }
-      cp.state("idle");
-      f.status(`every pod serves v${version} from memory`, OKT);
-    });
-  }
-
-  function outage() {
-    f.run(async s => {
-      reset();
-      PODS.forEach(p => setBadge(p, version));
-      count();
-      cp.state("bad"); cp.text("down ✕", BADT);
-      f.status("control plane is down", BADT);
-      await s.wait(700);
-      const p = PODS[3], peer = PODS[2];
-      p.node.state("dim"); setBadge(p, 0); count();
-      f.status(`${p.name} restarted with an empty cache`, WARNT);
-      await s.wait(800);
-      p.node.state("on"); p.node.text("polling…", WARNT);
-      lit(p.push, C.muted);
-      await travel(s, fx, p.push, C.muted, 800, { reverse: true, to: 0.55, r: 4 });
-      const pt = Kit.pointAt(p.push, 0.45);
-      pop(fx, pt.x + 40, pt.y, "✕ no answer", BADT);
-      lit(p.push);
-      await s.wait(700);
-      p.node.text("asking peers…", C.soft);
-      f.status(`${p.name} asks its peers through the load balancer`);
-      lit(p.peer, C.accent); lb.state("on");
-      await travel(s, fx, p.peer, C.accent, 600);
-      lit(peer.peer, C.accent);
-      await travel(s, fx, peer.peer, C.accent, 600, { reverse: true });
-      peer.node.state("on"); pop(fx, peer.x + 90, 140, `v${version}`, C.ink);
-      await travel(s, fx, peer.peer, C.accent, 600);
-      await travel(s, fx, p.peer, C.accent, 600, { reverse: true });
-      setBadge(p, version, true); p.node.text("cache"); count();
-      f.status(`${p.name} got v${version} from ${peer.name} · control plane still down`, OKT);
-      await s.wait(2200);
-      lit(p.peer); lit(peer.peer); lb.state("idle"); peer.node.state("idle"); p.node.state("idle");
-      cp.state("idle"); cp.text(`config v${version}`);
-      f.status("control plane back · pods keep their cache");
-    });
-  }
-
-  reset(); count(); f.status("producers and consumers cache config in memory");
-  f.onEnter(publish);
+        f.status(`every pod serves v${version} from memory`, OKT);
+      },
+    },
+    {
+      title: "outage",
+      text: `The control plane goes down. Then ${victim.name} restarts with an empty cache.`,
+      async play(s) {
+        PODS.forEach(p => p.node.state("idle"));
+        cp.state("bad"); cp.text("down ✕", BADT);
+        f.status("control plane is down", BADT);
+        await s.wait(700);
+        victim.node.state("dim"); setBadge(s, victim, 0); count();
+        f.status(`${victim.name} restarted with an empty cache`, WARNT);
+        await s.wait(300);
+      },
+    },
+    {
+      title: "no answer",
+      text: `${victim.name} polls the control plane, but nothing answers.`,
+      async play(s) {
+        victim.node.state("on"); victim.node.text("polling…", WARNT);
+        lit(victim.push, C.muted);
+        await travel(s, fx, victim.push, C.muted, 800, { reverse: true, to: 0.55, r: 4 });
+        const pt = Kit.pointAt(victim.push, 0.45);
+        pop(fx, pt.x + 40, pt.y, "✕ no answer", BADT);
+        lit(victim.push);
+        await s.wait(400);
+      },
+    },
+    {
+      title: "ask a peer",
+      text: `${victim.name} asks its peers through the load balancer. ${peer.name} sends back its cached v13.`,
+      async play(s) {
+        victim.node.text("asking peers…", C.soft);
+        f.status(`${victim.name} asks its peers through the load balancer`);
+        lit(victim.peer, C.accent); lb.state("on");
+        await travel(s, fx, victim.peer, C.accent, 600);
+        lit(peer.peer, C.accent);
+        await travel(s, fx, peer.peer, C.accent, 600, { reverse: true });
+        peer.node.state("on"); pop(fx, peer.x + 90, 140, `v${version}`, C.ink);
+        await travel(s, fx, peer.peer, C.accent, 600);
+        await travel(s, fx, victim.peer, C.accent, 600, { reverse: true });
+        setBadge(s, victim, version, true); victim.node.text("cache"); count();
+        f.status(`${victim.name} got v${version} from ${peer.name} · control plane still down`, OKT);
+      },
+    },
+    {
+      title: "back",
+      text: "The control plane comes back. The pods never needed it to do their work: each one runs on its cached config.",
+      async play(s) {
+        lb.state("idle"); peer.node.state("idle"); victim.node.state("idle");
+        await s.wait(300);
+        cp.state("idle"); cp.text(`config v${version}`);
+        f.status("control plane back · pods keep their cache", OKT);
+        await s.wait(600);
+      },
+    },
+  ];
+  const steps = f.steps(STEPS, { reset, enter });
 });
 
 /* ======================================================================
@@ -2968,10 +3095,9 @@ Kit.figure("outbox", f => {
 
   const KEYS = ["pay_8f3a", "pay_19c2", "pay_e07d", "pay_5b61", "pay_d4a9", "pay_2e8f", "pay_a36c", "pay_71bd"];
   const POISON = 4; // pay_d4a9 never processes
-  let rows = [], acks = 0, crashAt = -1, crashed = false, T = 0;
+  const CRASH_AT = 5, TICK = 560; // w2 crashes on tick 5, holding a row it has processed but not sent
+  let rows = [], acks = 0, crashAt = -1, crashed = false, T = 0, fails = 0;
 
-  const crashBtn = f.button("crash w2", () => { crashAt = T; }, {});
-  f.button("▶ replay", () => start(true), { primary: true });
   f.foot.append(
     h("span", { class: "fig-key" }, [h("i", { style: `background:${C.pg}` }), "processing (row is locked)"]),
     h("span", { class: "fig-key" }, [h("i", { style: `background:${C.kafka}` }), "sent, waiting for kafka ack"]),
@@ -2994,7 +3120,6 @@ Kit.figure("outbox", f => {
     kafkaEl.lastChild.textContent = acks;
     const stored = n("stored"), dlq = n("dlq");
     f.big(`${stored} / ${rows.length}`, `rows stored · ${dlq} in DLQ · 0 dual writes`, stored + dlq === rows.length ? OKT : C.ink);
-    crashBtn.disabled = !workers[1].alive || stored + dlq === rows.length;
   }
 
   function setup() {
@@ -3008,8 +3133,9 @@ Kit.figure("outbox", f => {
       return r;
     });
     workers.forEach(w => { w.row = null; w.alive = true; w.back = 0; });
-    acks = 0; T = 0; crashed = false;
+    acks = 0; T = 0; crashed = false; crashAt = CRASH_AT; fails = 0;
     render();
+    f.status("rows wait in pending until a worker locks them");
   }
 
   function step() {
@@ -3035,7 +3161,7 @@ Kit.figure("outbox", f => {
         if (--r.left > 0) return;
         if (r.state === "processing") {
           if (rows.indexOf(r) === POISON) {
-            r.owner = null; w.row = null;
+            r.owner = null; w.row = null; fails++;
             if (r.attempts >= 5) { r.state = "dlq"; r.flash = "bad"; f.status(`#${r.id} failed 5 times · moved to the DLQ, on-call alerted`, BADT); }
             else { r.state = "pending"; r.flash = "bad"; f.status(`processing #${r.id} failed · attempt ${r.attempts} of 5`, WARNT); }
           } else { r.state = "processed"; r.left = 1; }
@@ -3061,19 +3187,49 @@ Kit.figure("outbox", f => {
     return rows.every(r => r.state === "stored" || r.state === "dlq");
   }
 
-  function start(withCrash) {
-    f.run(async s => {
-      setup();
-      crashAt = withCrash ? 5 : -1;
-      f.status("two workers polling the outbox");
-      await s.wait(600);
-      while (!step()) await s.wait(560);
-      f.status(crashed ? "everything stored or in the DLQ, including the row the crash interrupted" : "every row stored or in the DLQ", OKT);
-    });
-  }
-  setup();
-  f.status("rows wait in pending until a worker locks them");
-  f.onEnter(() => start(true));
+  /* each step runs ticks until the moment it is about */
+  const until = async (s, done) => { do { await s.wait(TICK); if (step()) break; } while (!done()); };
+  const STEPS = [
+    {
+      title: "lock",
+      text: "Two workers poll with SELECT … FOR UPDATE SKIP LOCKED. w1 locks #1041. w2 skips that locked row and takes #1042, so no row has two owners.",
+      play: async s => { f.status("two workers polling the outbox"); await until(s, () => workers.every(w => w.row)); },
+    },
+    {
+      title: "crash",
+      text: "Both rows are processed. Then w2 crashes while it holds #1042: the row is processed, but Kafka does not have it yet.",
+      play: s => until(s, () => crashed),
+    },
+    {
+      title: "stored",
+      text: "Kafka acks #1041, and only then is the row flagged stored. In the same tick the lease on #1042 runs out. The row keeps its processed flag.",
+      play: s => until(s, () => rows[0].state === "stored"),
+    },
+    {
+      title: "resend",
+      text: "w1 picks up #1042 and only sends it to Kafka. Processing is idempotent and the flag says it is done, so it does not run again.",
+      play: s => until(s, () => rows[1].state === "stored"),
+    },
+    {
+      title: "poison",
+      text: "Meanwhile the watchdog restarts w2. Then #1045 (pay_d4a9) fails to process. It goes back to pending with one attempt used.",
+      play: s => until(s, () => fails > 0),
+    },
+    {
+      title: "DLQ",
+      text: "#1045 fails again on every attempt. After 5 attempts it moves to the DLQ and on-call gets an alert. The other rows never wait for it.",
+      play: s => until(s, () => rows[POISON].state === "dlq"),
+    },
+    {
+      title: "done",
+      text: "Every row is stored or in the DLQ, including the row the crash interrupted. No row was flagged stored before Kafka had it.",
+      async play(s) {
+        await until(s, () => false);
+        f.status("everything stored or in the DLQ, including the row the crash interrupted", OKT);
+      },
+    },
+  ];
+  f.steps(STEPS, { reset: setup });
 });
 
 /* ======================================================================
@@ -3114,10 +3270,8 @@ Kit.figure("acks", f => {
     r.setAttribute("stroke-dasharray", st === "missing" ? "3 3" : "");
   };
 
-  const acks = f.segmented([["1", "acks=1"], ["all", "acks=all"]], "1", v => run(v), { label: "Acks" });
-  f.button("▶ write, then kill the leader", () => run(acks.value), { primary: true });
-  const say = h("span", { class: "fx-say" });
-  f.foot.appendChild(say);
+  /* the segmented control jumps to the first step of that mode */
+  const acks = f.segmented([["1", "acks=1"], ["all", "acks=all"]], "1", v => steps.go(v === "1" ? 0 : 2), { label: "Acks" });
 
   function reset(mode) {
     fx.replaceChildren();
@@ -3131,55 +3285,41 @@ Kit.figure("acks", f => {
     Object.values(W).flat().forEach(w => w && lit(w));
     prod.text(mode === "1" ? "topic clickstream" : "topic orders");
     f.big("—", mode === "1" ? "acks=1: leader only" : "acks=all: leader + in-sync followers");
-    say.textContent = mode === "1"
-      ? "acks=1 answers as soon as the leader has the write. Only topics that are inherently not that important (clickstream here) are allowed to use it."
-      : "acks=all is the default when a topic doesn't set one. The ack waits until the in-sync followers have the write too.";
+    f.status("");
   }
 
-  async function writeAndCrash(s, mode) {
+  /* the producer writes offset 42 and gets its ack */
+  async function write(s, mode) {
     reset(mode);
     f.status("producer sends offset 42");
     prod.state("on"); lit(W.write, C.prod);
     await travel(s, fx, W.write, C.prod, 600);
     cell(0, 2, "full"); B[0].n.state("on");
-    let crashed = false;
-    const replicate = async (ms) => Promise.all([1, 2].map(async i => {
-      lit(W.rep[i], C.kafka);
-      const p = travel(s, fx, W.rep[i], C.kafka, ms, { keep: true });
-      const c = await p;
-      if (crashed) { c.remove(); return; }
-      c.remove(); cell(i, 2, "full");
-    }));
-    if (mode === "1") {
-      lit(W.write, C.ok);
-      await travel(s, fx, W.write, C.ok, 450, { reverse: true });
-      pop(fx, 86, 98, "✓ ack · 1 of 3 copies", OKT);
-      f.status("producer told the generator: stored");
-      /* followers fetch a moment later; the leader dies first */
-      const rep = Promise.all([1, 2].map(async i => {
+    if (mode === "all") {
+      await Promise.all([1, 2].map(async i => {
         lit(W.rep[i], C.kafka);
-        const c = sv("circle", { r: 5, fill: C.kafka, stroke: C.bg, "stroke-width": 2, cx: -99, cy: -99 });
-        fx.appendChild(c);
-        await s.tween(1800, t => {
-          if (crashed) { c.remove(); return; }
-          const p = Kit.pointAt(W.rep[i], t); c.setAttribute("cx", p.x); c.setAttribute("cy", p.y);
-        }, Kit.ease.linear);
-        c.remove();
-        if (!crashed) cell(i, 2, "full");
+        await travel(s, fx, W.rep[i], C.kafka, 700);
+        cell(i, 2, "full");
       }));
-      await s.wait(500);
-      crashed = true;
-      await rep;
-    } else {
-      await replicate(700);
       pop(fx, 545, 70, "3 of 3 in sync", C.soft);
       await s.wait(250);
-      lit(W.write, C.ok);
-      await travel(s, fx, W.write, C.ok, 450, { reverse: true });
-      pop(fx, 86, 98, "✓ ack · 3 of 3 copies", OKT);
-      f.status("producer told the generator: stored");
-      await s.wait(700);
-      crashed = true;
+    }
+    lit(W.write, C.ok);
+    await travel(s, fx, W.write, C.ok, 450, { reverse: true });
+    pop(fx, 86, 98, mode === "1" ? "✓ ack · 1 of 3 copies" : "✓ ack · 3 of 3 copies", OKT);
+    f.status("producer told the generator: stored");
+    await s.wait(400);
+  }
+
+  /* the leader dies; with acks=1 the followers were still fetching 42 */
+  async function crash(s, mode) {
+    if (mode === "1") {
+      /* the dots never arrive: the leader dies first */
+      [1, 2].forEach(i => { lit(W.rep[i], C.kafka); travel(s, fx, W.rep[i], C.kafka, 1800, { to: 0.9, ease: Kit.ease.linear }).catch(() => {}); });
+      await s.wait(500);
+      fx.replaceChildren();
+    } else {
+      await s.wait(300);
     }
     W.rep.forEach(w => w && lit(w)); lit(W.write); prod.state("idle");
     B[0].alive = false; B[0].n.state("bad"); B[0].n.text("✕ crashed", BADT);
@@ -3201,15 +3341,33 @@ Kit.figure("acks", f => {
       f.status("the new leader already had it", OKT);
     }
   }
-  function run(mode) { acks.set(mode, false); f.run(s => writeAndCrash(s, mode)); }
 
-  reset("1");
-  f.onEnter(() => f.run(async s => {
-    await writeAndCrash(s, "1");
-    await s.wait(3200);
-    acks.set("all", false);
-    await writeAndCrash(s, "all");
-  }));
+  const STEPS = [
+    {
+      title: "acks=1",
+      text: "acks=1 answers as soon as the leader has the write: 1 of 3 copies. Only topics that are inherently not that important (clickstream here) may use it.",
+      play: s => write(s, "1"),
+    },
+    {
+      title: "leader dies",
+      text: "The followers start to fetch offset 42, but the leader crashes first. The new leader never had it, so a log the producer called stored is gone.",
+      play: s => crash(s, "1"),
+    },
+    {
+      title: "acks=all",
+      text: "acks=all is the default when a topic doesn't set one. The ack waits until the in-sync followers have the write too: 3 of 3 copies.",
+      play: s => write(s, "all"),
+    },
+    {
+      title: "leader dies",
+      text: "The same crash. The new leader already has offset 42, so no acked log is lost.",
+      play: s => crash(s, "all"),
+    },
+  ];
+  const steps = f.steps(STEPS, {
+    reset: () => reset("1"),
+    enter: i => acks.set(i < 2 ? "1" : "all", false),
+  });
 });
 
 /* ======================================================================
@@ -3257,25 +3415,14 @@ Kit.figure("commit", f => {
   const destText = d => d.n.text(`${d.up ? "" : "503 · "}got ${d.got}${d.dup ? ` · ${d.dup} dup dropped` : ""}`, d.up ? C.muted : BADT);
   const big = () => f.big(`${committed}`, `committed offset · ${lost} lost · ${dests.reduce((a, d) => a + d.dup, 0)} duplicates dropped by destinations`);
 
-  const down = f.segmented([["up", "search-index up"], ["down", "search-index down"]], "up", v => setDown(v === "down"), { label: "search-index" });
-  const nextBtn = f.button("▶ next log", () => f.run(s => handle(s, committed + 1, armed)), {});
-  const crashBtn = f.button("crash before commit", () => { armed = true; crashBtn.classList.add("primary"); }, {});
-  f.button("▶ replay", () => story(), { primary: true });
-  let armed = false;
-  const say = h("span", { class: "fx-say" });
-  f.foot.appendChild(say);
-
   function setDown(isDown) {
     dests[0].up = !isDown;
     dests[0].n.state(isDown ? "bad" : "idle");
     destText(dests[0]);
   }
 
-  async function handle(s, off, crash) {
-    if (off >= OFF0 + NCELL) { f.status("end of the demo partition · press replay"); return; }
-    fx.replaceChildren();
-    armed = false; crashBtn.classList.remove("primary");
-    nextBtn.disabled = true;
+  /* read one offset and send a copy to every destination; returns the ones that failed transiently */
+  async function deliver(s, off) {
     const c = cells[off - OFF0];
     c.r.style.stroke = C.cons;
     readW.setAttribute("d", `M${c.x + 19},62 C${c.x + 19},110 180,104 180,150`);
@@ -3291,26 +3438,20 @@ Kit.figure("commit", f => {
       if (!d.up) { pop(fx, 775, 30 + i * 86, "✕ 503 transient", BADT); parked.push(i); return; }
       if (d.seen.has(off)) { d.dup++; pop(fx, 775, 30 + i * 86, "dup · dropped by key", WARNT); }
       else { d.seen.add(off); d.got++; pop(fx, 775, 30 + i * 86, "✓ delivered", OKT); }
-      d.n.state("ok"); setTimeout(() => d.n.state(d.up ? "idle" : "bad"), 700);
+      d.n.state("ok"); later(s, 700, () => d.n.state(d.up ? "idle" : "bad"));
       destText(d);
     }));
-    if (crash) {
-      cons.state("bad"); cons.text("✕ crashed", BADT);
-      f.status(`consumer died before committing ${off} · nothing is lost, it will be read again`, BADT);
-      big();
-      await s.wait(1400);
-      cons.state("on"); cons.text("pod 2 took over", C.ink);
-      f.status(`pod 2 resumes from the last commit (${committed}) and reads ${off} again`);
-      await s.wait(900);
-      cons.state("idle");
-      return handle(s, off, false);
-    }
+    return parked;
+  }
+
+  /* park the failed copies in the retry topic, then commit */
+  async function commit(s, off, parked) {
     for (const i of parked) {
       lit(rW, C.retry);
       await travel(s, fx, rW, C.retry, 450);
       lit(rW);
       retry.state("on"); pop(fx, 180, 240, `✓ ${DN[i]} copy parked`, OKT, { size: 10.5 });
-      setTimeout(() => retry.state("idle"), 700);
+      later(s, 700, () => retry.state("idle"));
     }
     cons.text("pod " + (cons.sub.textContent.includes("2") ? "2" : "1"));
     lit(readW, C.accent);
@@ -3320,39 +3461,53 @@ Kit.figure("commit", f => {
     cons.state("idle");
     f.status(parked.length ? `committed ${off} after the retry write was acked` : `committed ${off}`, OKT);
     big();
-    nextBtn.disabled = false;
   }
+  const handle = async (s, off) => commit(s, off, await deliver(s, off));
 
   function reset() {
     fx.replaceChildren();
     dests.forEach(d => { d.got = 0; d.dup = 0; d.seen = new Set(); d.up = true; d.n.state("idle"); destText(d); });
-    down.set("up", false);
     cons.state("idle"); cons.text("pod 1"); retry.state("idle");
+    [readW, rW, ...dW].forEach(w => lit(w));
     setCommitted(OFF0); big();
-    armed = false; crashBtn.classList.remove("primary");
+    f.status("one read · three deliveries · one commit");
   }
 
-  function story() {
-    f.run(async s => {
-      reset();
-      say.textContent = "Logs 41 and 42: every destination answers, so the offset moves right away.";
-      await s.wait(500);
-      await handle(s, 41, false); await s.wait(600);
-      await handle(s, 42, false); await s.wait(900);
-      say.textContent = "search-index starts returning 503s. Its copy goes to the retry topic, and the offset still moves for the other two.";
-      down.set("down", false); setDown(true);
-      await s.wait(900);
-      await handle(s, 43, false); await s.wait(1100);
-      say.textContent = "Now the consumer crashes after delivering 44 but before committing. The next pod reads 44 again; destinations drop the duplicate by idempotency key.";
-      await s.wait(900);
-      await handle(s, 44, true);
-      await s.wait(600);
-      say.textContent = "At least once per destination: nothing lost, duplicates possible, and the idempotency key travels with every copy. Try it yourself with the buttons above.";
-    });
-  }
-  reset();
-  say.textContent = "One read, three deliveries, one commit.";
-  f.onEnter(story);
+  const STEPS = [
+    {
+      title: "commit",
+      text: "The consumer reads 41, then 42, and sends one copy to each destination. Every destination answers, so the offset moves right away.",
+      async play(s) { await handle(s, 41); await s.wait(600); await handle(s, 42); },
+    },
+    {
+      title: "503s",
+      text: "search-index starts to return 503s. Its copy of 43 goes to the retry topic. The offset still moves, after the retry write is acked.",
+      async play(s) { setDown(true); await s.wait(700); await handle(s, 43); },
+    },
+    {
+      title: "crash",
+      text: "The consumer delivers 44, then crashes before it commits. Nothing is lost: the committed offset is still 43.",
+      async play(s) {
+        await deliver(s, 44);
+        cons.state("bad"); cons.text("✕ crashed", BADT);
+        f.status("consumer died before committing 44 · nothing is lost, it will be read again", BADT);
+        big();
+        await s.wait(600);
+      },
+    },
+    {
+      title: "read again",
+      text: "Pod 2 resumes from the last commit and reads 44 again. audit-log and email-service drop the duplicate by its idempotency key. Nothing lost, duplicates possible.",
+      async play(s) {
+        cons.state("on"); cons.text("pod 2 took over", C.ink);
+        f.status(`pod 2 resumes from the last commit (${committed}) and reads 44 again`);
+        await s.wait(900);
+        cons.state("idle");
+        await handle(s, 44);
+      },
+    },
+  ];
+  f.steps(STEPS, { reset, enter: () => fx.replaceChildren() });
 });
 
 /* ======================================================================
@@ -3437,7 +3592,8 @@ Kit.figure("jitter", f => {
     const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
     const p = pt.matrixTransform(svg.getScreenCTM().inverse());
     const k = PX.findIndex(x => p.x >= x && p.x <= x + PW);
-    if (k < 0) { tip.hidden = true; cross.setAttribute("opacity", 0); return; }
+    /* only the part of a panel that is drawn so far */
+    if (k < 0 || p.x > PX[k] + +clips[k].rect.getAttribute("width")) { tip.hidden = true; cross.setAttribute("opacity", 0); return; }
     const bins = data[mode][k], i = Math.min(bins.length - 1, Math.floor((p.x - PX[k]) / (PW / bins.length)));
     const sec = PANELS[k].lo + i;
     cross.setAttribute("x1", PX[k] + (i + 0.5) * (PW / bins.length)); cross.setAttribute("x2", cross.getAttribute("x1")); cross.setAttribute("opacity", 0.5);
@@ -3449,34 +3605,42 @@ Kit.figure("jitter", f => {
   });
   svg.addEventListener("pointerleave", () => { tip.hidden = true; cross.setAttribute("opacity", 0); });
 
-  const seg = f.segmented([["on", "jitter on"], ["off", "jitter off"]], "on", v => { mode = v; replay(); }, { label: "Jitter" });
-  f.button("▶ replay", () => replay(), { primary: true });
+  /* the segmented control jumps to the first step of that mode */
+  const seg = f.segmented([["off", "jitter off"], ["on", "jitter on"]], "off", v => steps.go(v === "off" ? 0 : 2), { label: "Jitter" });
   f.foot.append(
     h("span", { class: "fig-key" }, [h("i", { style: `background:${C.retry}` }), "retry attempts per second against search-index"]),
     h("span", { class: "fig-note", text: "hover the bars · same 200 messages, same seed, only the jitter changes" }),
   );
 
-  function replay() {
-    draw();
-    f.run(async s => {
-      clips.forEach(c => c.rect.setAttribute("width", 0));
-      for (const c of clips) {
-        await s.tween(1300, t => c.rect.setAttribute("width", t * PW), Kit.ease.linear);
-        await s.wait(150);
-      }
-    });
-  }
-  draw();
-  seg.set("off", false); mode = "off"; draw();
-  f.onEnter(() => f.run(async s => {
-    mode = "off"; seg.set("off", false); draw();
-    clips.forEach(c => c.rect.setAttribute("width", 0));
-    for (const c of clips) { await s.tween(1100, t => c.rect.setAttribute("width", t * PW), Kit.ease.linear); await s.wait(120); }
-    await s.wait(2200);
-    mode = "on"; seg.set("on", false); draw();
-    clips.forEach(c => c.rect.setAttribute("width", 0));
-    for (const c of clips) { await s.tween(1300, t => c.rect.setAttribute("width", t * PW), Kit.ease.linear); await s.wait(150); }
-  }));
+  const setMode = m => { mode = m; seg.set(m, false); draw(); clips.forEach(c => c.rect.setAttribute("width", 0)); };
+  const reveal = (s, k, ms) => s.tween(ms, t => clips[k].rect.setAttribute("width", t * PW), Kit.ease.linear);
+  const peaks = m => data[m].map(bins => Math.max(...bins));
+  const STEPS = [
+    {
+      title: "no jitter",
+      text: "200 messages fail in the same second. Without jitter each one waits exactly 10s, so step 1 sends all 200 retries to search-index in one second.",
+      play: s => reveal(s, 0, 1100),
+    },
+    {
+      title: "steps 2 and 3",
+      text: "Each wait starts when the message enters the step, so the spike moves on intact: 200 at once on step 2, and 200 at once on step 3.",
+      async play(s) { await reveal(s, 1, 1100); await s.wait(120); await reveal(s, 2, 1100); },
+    },
+    {
+      title: "±30% jitter",
+      text: () => `Now each message waits 10s ±30%, so anywhere from 7s to 13s. The same 200 retries spread out: the busiest second on step 1 has ${peaks("on")[0]}.`,
+      async play(s) { setMode("on"); await reveal(s, 0, 1300); },
+    },
+    {
+      title: "steps 2 and 3",
+      text: () => `The spread grows with every step: the busiest second has ${peaks("on")[1]} retries on step 2 and ${peaks("on")[2]} on step 3. By then search-index is back.`,
+      async play(s) { await reveal(s, 1, 1300); await s.wait(150); await reveal(s, 2, 1300); },
+    },
+  ];
+  const steps = f.steps(STEPS, {
+    reset: () => setMode("off"),
+    enter: i => seg.set(i < 2 ? "off" : "on", false),
+  });
 });
 
 /* ======================================================================
@@ -3586,7 +3750,7 @@ Kit.figure("breaker", f => {
     headT.setAttribute("x", Math.min(X1 - 14, Math.max(X0 + 14, x))); headT.textContent = clockStr(t * 60);
     clipR.setAttribute("width", x);
     if (t < out) f.big("healthy", "search-index answering", OKT);
-    else if (t < trip) f.big(`${Math.min(20, Math.ceil(((t - out) / (trip - out)) * 20))} / 20`, "transient failures in a row", WARNT);
+    else if (t <= trip) f.big(`${Math.min(20, Math.ceil(((t - out) / (trip - out)) * 20))} / 20`, "transient failures in a row", WARNT);
     else if (t < resume) {
       const nextProbe = probes.find(p => p.t > t);
       f.big("paused", `all 3 steps · next half-open probe in ${clockStr((nextProbe.t - t) * 60)}`, WARNT);
@@ -3597,8 +3761,8 @@ Kit.figure("breaker", f => {
   const slider = h("input", { type: "range", min: 1, max: 6, step: 0.5, value: L, "aria-label": "Outage length in minutes" });
   const sliderL = h("span", { class: "fx-range-v", text: `${L} min outage` });
   f.actions.append(h("label", { class: "fx-range" }, [slider, sliderL]));
-  f.button("▶ replay", () => play(), { primary: true });
-  slider.addEventListener("input", () => { L = +slider.value; sliderL.textContent = `${L} min outage`; draw(); f.stop(); readout(TMAX); });
+  /* a new outage length shows the whole new timeline */
+  slider.addEventListener("input", () => { L = +slider.value; sliderL.textContent = `${L} min outage`; draw(); steps.seek(STEPS.length - 1); readout(TMAX); });
   f.foot.append(
     h("span", { class: "fig-key" }, [h("i", { style: `background:${C.prod}66` }), "step consuming"]),
     h("span", { class: "fig-key" }, [h("i", { style: `background:repeating-linear-gradient(45deg,${C.warn} 0 2px,${C.warn}33 2px 5px)` }), "shared pause"]),
@@ -3611,17 +3775,50 @@ Kit.figure("breaker", f => {
   const scrubTo = e => {
     const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
     const p = pt.matrixTransform(svg.getScreenCTM().inverse());
-    readout(Math.max(0, Math.min(TMAX, ((p.x - X0) / (X1 - X0)) * TMAX)));
+    const t = Math.max(0, Math.min(TMAX, ((p.x - X0) / (X1 - X0)) * TMAX));
+    steps.seek(stepAt(t)); readout(t);
   };
-  svg.addEventListener("pointerdown", e => { if (e.button) return; scrubbing = true; f.stop(); svg.setPointerCapture(e.pointerId); scrubTo(e); });
+  svg.addEventListener("pointerdown", e => { if (e.button) return; scrubbing = true; svg.setPointerCapture(e.pointerId); scrubTo(e); });
   svg.addEventListener("pointermove", e => { if (scrubbing) scrubTo(e); });
   svg.addEventListener("pointerup", () => { scrubbing = false; });
   svg.style.cursor = "ew-resize"; svg.style.touchAction = "pan-y";
 
-  function play() { f.run(s => s.tween(10000, t => readout(t * TMAX), Kit.ease.linear)); }
+  /* each step moves the playhead from one moment of the outage to the next */
+  const at = () => [0, M.trip, M.back, M.resume, M.drained, TMAX];
+  const sweep = (s, k) => { const [a, b] = at().slice(k, k + 2); return s.tween(Math.max(1200, (b - a) * 850), u => readout(a + (b - a) * u), Kit.ease.linear); };
+  const stepAt = t => Math.max(0, at().findIndex((m, k) => k > 0 && t <= m) - 1);
+  const failed = () => M.probes.filter(p => !p.ok).map(p => clockStr(p.t * 60));
+  const STEPS = [
+    {
+      title: "503s",
+      text: "At 1:00 search-index starts to return 503s. Each retry step counts transient failures in a row. At 20, the step trips.",
+      play: s => sweep(s, 0),
+    },
+    {
+      title: "shared pause",
+      text: () => "All three retry steps pause together and the main breaker opens. New logs wait in step 1, durably. "
+        + (failed().length ? `The half-open probe at ${failed().join(" and ")} fails, so everything stays paused.` : "The first half-open probe is due 2 minutes after the trip."),
+      play: s => sweep(s, 1),
+    },
+    {
+      title: "probe ✓",
+      text: () => `search-index is back at ${clockStr(M.back * 60)}. The probe at ${clockStr(M.resume * 60)} gets through, so all three steps resume and the main breaker closes.`,
+      play: s => sweep(s, 2),
+    },
+    {
+      title: "drain",
+      text: () => `${Math.round(M.peakQ).toLocaleString("en-US")} logs waited in step 1. They drain with backpressure, so the backlog doesn't knock search-index down again.`,
+      play: s => sweep(s, 3),
+    },
+    {
+      title: "drained",
+      text: "All three steps consume normally again. email-service delivered normally the whole time.",
+      play: s => sweep(s, 4),
+    },
+  ];
   f.status("email-service: unaffected ✓", OKT);
-  draw(); readout(0);
-  f.onEnter(play);
+  draw();
+  const steps = f.steps(STEPS, { reset: () => readout(0) });
 });
 
 /* ======================================================================
@@ -3661,7 +3858,6 @@ Kit.figure("retention", f => {
 
   const slider = h("input", { type: "range", min: 0, max: DMAX, step: 0.1, value: 0, "aria-label": "Days since the destination went down" });
   f.actions.append(h("label", { class: "fx-range" }, [slider, h("span", { class: "fx-range-v", text: "drag the day" })]));
-  f.button("▶ replay", () => play(), { primary: true });
 
   function at(d) {
     head.setAttribute("x1", xOf(d)); head.setAttribute("x2", xOf(d));
@@ -3679,10 +3875,38 @@ Kit.figure("retention", f => {
       f.status(d >= 14 ? "✓ past DLQ retention, safe in S3" : "daily worker moved it after 10 days", OKT);
     }
   }
-  slider.addEventListener("input", () => { f.stop(); at(+slider.value); });
-  function play() { f.run(s => s.tween(7000, t => at(t * DMAX), Kit.ease.inOut)); }
-  at(0);
-  f.onEnter(play);
+  /* each step is one stretch between retention boundaries; it stops just short of the next boundary,
+     so the readout still describes this stretch (the last one runs to the end) */
+  const DAYS = [0, 7, 10, 14, DMAX];
+  const sweep = (s, k) => {
+    const a = DAYS[k], b = k + 2 < DAYS.length ? DAYS[k + 1] - 0.05 : DMAX;
+    return s.tween(Math.max(1200, (b - a) * 420), u => at(a + (b - a) * u), Kit.ease.inOut);
+  };
+  const stepAt = d => DAYS.slice(1, -1).filter(m => d >= m).length;
+  slider.addEventListener("input", () => { steps.seek(stepAt(+slider.value)); at(+slider.value); });
+  const STEPS = [
+    {
+      title: "days 0–7",
+      text: "The destination goes down on day 0. After about 6 minutes of retries the log is in the DLQ, and on-call gets an alert. The main topic still has its copy too.",
+      play: s => sweep(s, 0),
+    },
+    {
+      title: "day 7",
+      text: "The main topic keeps logs for 7 days, so that copy expires. The log is still safe in the DLQ, and on-call can still replay it.",
+      play: s => sweep(s, 1),
+    },
+    {
+      title: "day 10",
+      text: "The daily worker moves DLQ logs older than 10 days to the S3 archive.",
+      play: s => sweep(s, 2),
+    },
+    {
+      title: "day 14",
+      text: "DLQ retention ends at day 14. The log is already in S3, so nothing is lost.",
+      play: s => sweep(s, 3),
+    },
+  ];
+  const steps = f.steps(STEPS, { reset: () => at(0) });
 });
 
 })(window.Kit);

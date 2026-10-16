@@ -105,6 +105,7 @@ Kit.figure("acks", f => {
 | --- | --- |
 | `f.chrome(o)` | builds the header (`o.tag`, `o.label`), big readout, `f.actions`, `f.stage` and `f.foot` |
 | `f.run(fn)` / `f.stop()` | async sequence with `s.wait(ms)` and `s.tween(ms, fn, ease)`; replays cancel cleanly |
+| `f.steps(list, o)` | step-by-step playback with `← prev`, `▶ play` / `❚❚ pause` and `next →` buttons, step dots and a narration line (see below) |
 | `f.loop(fn)` | per-frame `fn(dt, timeMs)` |
 | `f.onEnter(fn)` | autoplay hook |
 | `Kit.h` / `Kit.s` | build HTML / SVG elements: `Kit.s("rect", { x: 0, width: 10, onclick: fn }, [children])` |
@@ -112,6 +113,30 @@ Kit.figure("acks", f => {
 | `Kit.ease` | `linear`, `out`, `inOut` |
 
 Each figure has its own clock that only runs while it is on screen, so a figure you scrolled past picks up where it left off. With reduced motion, tweens jump straight to their end state; waits still happen, so sequences step instead of glide. `template/figure.css` also has `.fx-flow` (moving dashes on a wire), `.fx-pop` (a label that rises and fades), `.fx-say`, `.fx-steps`, `.fx-tip`, `.fx-range` and `.fig-key` for figure UIs.
+
+### Steps
+
+All figures in the WAL post use `f.steps`. Split the animation into steps. Each step has a title, a narration text and a `play(s)` function:
+
+```js
+const steps = f.steps([
+  { title: "write", text: "The producer sends offset 42.", play: async s => { /* animate */ } },
+  { title: "crash", text: () => `The text can be a function.`, play: s => crash(s) },
+], {
+  reset() { /* put the figure back to the state before step 1 */ },
+  enter(i) { /* optional: runs when step i starts, e.g. highlight boxes, clear old labels */ },
+  gap: 1500,         // ms between steps while autoplay is on
+  autoplay: true,    // start when the figure comes into view
+});
+// steps.go(i), steps.redo(), steps.seek(i), steps.index
+```
+
+- Autoplay starts when the figure comes into view. It plays every step in order and stops after the last step. The button then shows `↻ replay`.
+- `prev`, `next`, a step dot and the arrow keys (when focus is in the figure) pause autoplay and play only that step.
+- `▶ play` continues from the next step. `❚❚ pause` lets the current step finish, then stops.
+- To go to step `i`, the player calls `reset()` and runs steps `0 … i-1` with `s.fast` set. With `s.fast`, waits end at once and tweens jump to their end. Thus each `play(s)` must get to the same end state at any speed. Do not let `setTimeout` change state. Use `s.wait(ms).then(fn, () => {})` instead.
+- When a scenario control changes (a route, a drop count), call `steps.redo()` or `steps.go(i, true)` to play a step again with the new value. The `true` keeps autoplay on or off as it was.
+- When the figure moves itself (a scrub, a slider), call `steps.seek(i)`. This stops the animation, pauses autoplay and marks step `i` as the current step.
 
 ## Theme
 

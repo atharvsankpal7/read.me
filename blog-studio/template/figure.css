@@ -141,6 +141,7 @@
   .fig-stage { padding: 14px 16px 14px; }
   .fig-stage.fig-wide::before { content: "swipe to see the whole figure →"; position: sticky; left: 0; display: block; margin-bottom: 6px; color: var(--f-faint); font-size: 11px; }
   .fig-foot { padding: 10px 16px 14px; }
+  .fig-narr { padding: 10px 16px 12px; }
 }
 @media print {
   .fig-actions { display: none; }
@@ -160,10 +161,17 @@
 }
 /* narration line + step markers in the footer */
 .fig .fx-say { flex: 1 1 320px; color: var(--f-soft); font-size: 12.5px; line-height: 1.65; min-height: 3.3em; }
+.fig .fx-say > b:first-child { color: var(--f-ink); font-weight: 600; margin-right: 4px; }
 .fig .fx-steps { display: inline-flex; gap: 6px; }
 .fig .fx-steps button { width: 22px; height: 6px; padding: 0; border: 1px solid var(--f-line-2); background: transparent; cursor: pointer; transition: background-color .25s ease, width .25s ease, border-color .25s ease; }
+.fig .fx-steps button.done { background: var(--f-line-2); }
 .fig .fx-steps button.on { width: 34px; background: var(--f-accent); border-color: var(--f-accent); }
 .fig .fx-steps button:hover { border-color: var(--f-primary); }
+/* f.steps(): dots + narration between the stage and the foot; the play / pause button keeps its width */
+.fig-narr { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 18px; padding: 12px 24px 14px; border-top: 1px solid var(--f-line); }
+.fig-narr .fx-steps { margin-top: 7px; }
+.fig .fx-player { display: inline-flex; gap: 8px; }
+.fig-btn.fx-toggle { min-width: 11ch; }
 /* hover tooltip, like the portfolio's writing preview popover */
 .fig .fx-tip {
   position: absolute; z-index: 2; pointer-events: none; min-width: 150px;

@@ -619,7 +619,8 @@ button { font: inherit; color: inherit; }
       loop: function (fn) { frames.push(fn); },
       /* first time the figure is mostly on screen; replays start from here */
       onEnter: function (fn) { if (entered) fn(); else enter.push(fn); },
-      /* run an async sequence; starting a new one cancels the old. s.wait(ms), s.tween(ms, fn, ease) */
+      /* run an async sequence; starting a new one cancels the old. s.wait(ms), s.tween(ms, fn, ease).
+         With s.fast set, waits resolve at once and tweens jump to their end (used to skip to a step). */
       run: function (fn) {
         if (token) token.dead = true;
         var tk = token = { dead: false };
@@ -630,10 +631,13 @@ button { font: inherit; color: inherit; }
             j.tk = tk; j.start = f.time; j.res = res; jobs.push(j);
           });
         };
+        var now = function () { return tk.dead ? Promise.reject(CANCEL) : Promise.resolve(); };
         var s = {
+          fast: false,
           get alive() { return !tk.dead; },
-          wait: function (ms) { return add({ dur: ms }); },
+          wait: function (ms) { return s.fast ? now() : add({ dur: ms }); },
           tween: function (ms, cb, ease) {
+            if (s.fast) { if (!tk.dead) cb(1); return now(); }
             if (f.reducedMotion) { cb(1); return s.wait(Math.min(ms, 120)); }
             return add({ dur: ms, cb: cb, ease: ease || Kit.ease.inOut });
           },
@@ -641,6 +645,96 @@ button { font: inherit; color: inherit; }
         return Promise.resolve().then(function () { return fn(s); }).catch(function (e) { if (e !== CANCEL) f.fail(e); });
       },
       stop: function () { if (token) token.dead = true; jobs = []; },
+      /* step-by-step playback: prev / play-pause / next buttons, step dots and a narration line.
+         list: [{ title, text, play: async s => {} }], text can be a function. Going to step i runs o.reset(),
+         replays steps 0..i-1 with s.fast (no waiting), then plays step i, so every play() has to reach the
+         same end state at any speed. o.enter(i) runs as step i starts. Autoplay starts when the figure
+         comes into view, moves on o.gap ms after each step and stops after the last one. */
+      steps: function (list, o) {
+        o = o || {};
+        var last = list.length - 1, index = 0, auto = false, busy = false, started = false;
+        var player = Kit.h("div", { class: "fx-player", role: "group", "aria-label": "Steps" });
+        f.actions.appendChild(player);
+        var prev = f.button("← prev", function () { go(index - 1); }, { parent: player });
+        var toggle = f.button("", function () { if (auto) pause(); else play(); }, { primary: true, parent: player });
+        var next = f.button("next →", function () { go(index + 1); }, { parent: player });
+        toggle.classList.add("fx-toggle");
+        prev.setAttribute("aria-label", "Previous step"); next.setAttribute("aria-label", "Next step");
+        var dots = Kit.h("span", { class: "fx-steps" }), say = Kit.h("span", { class: "fx-say", "aria-live": "polite" });
+        list.forEach(function (st, i) {
+          dots.appendChild(Kit.h("button", { type: "button", "aria-label": "Step " + (i + 1) + ": " + st.title, onclick: function () { go(i); } }));
+        });
+        panel.insertBefore(Kit.h("div", { class: "fig-narr" }, [dots, say]), f.foot || null);
+
+        function sync() {
+          var replay = !auto && started && index === last && !busy;
+          prev.disabled = index === 0; next.disabled = index === last;
+          toggle.textContent = auto ? "❚❚ pause" : replay ? "↻ replay" : "▶ play";
+          toggle.setAttribute("aria-label", auto ? "Pause autoplay" : replay ? "Replay from the first step" : "Play the steps");
+          [].forEach.call(dots.children, function (b, k) {
+            b.classList.toggle("on", k === index); b.classList.toggle("done", k < index);
+            if (k === index) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+          });
+        }
+        function label(i) {
+          index = i;
+          var st = list[i], text = typeof st.text === "function" ? st.text() : st.text;
+          say.replaceChildren(Kit.h("b", { text: st.title }), " " + (text || ""));
+          sync();
+        }
+        function from(s, k) {
+          label(k); busy = true; sync();
+          if (o.enter) o.enter(k);
+          return s.wait(o.lead == null ? 250 : o.lead).then(function () { return list[k].play(s); }).then(function () {
+            busy = false;
+            if (k === last) auto = false;
+            sync();
+            if (!auto) return;
+            return s.wait(o.gap == null ? 1500 : o.gap).then(function () { if (auto) return from(s, k + 1); });
+          });
+        }
+        /* go to step i and play it; keep = leave autoplay as it is (otherwise a manual jump pauses it) */
+        function go(i, keep) {
+          i = Math.max(0, Math.min(last, i));
+          if (!keep) auto = false;
+          started = true; busy = true; label(i);
+          return f.run(function (s) {
+            if (o.reset) o.reset();
+            s.fast = true;
+            var p = Promise.resolve();
+            list.slice(0, i).forEach(function (st) { p = p.then(function () { return st.play(s); }); });
+            return p.then(function () { s.fast = false; return from(s, i); });
+          });
+        }
+        function play() {
+          auto = true;
+          if (busy) { sync(); return; }
+          go(!started || index === last ? 0 : index + 1, true);
+        }
+        function pause() { auto = false; sync(); }
+        /* the figure moved itself (a scrub, a slider): stop, pause, and call step i the current one */
+        function seek(i) {
+          f.stop(); auto = false; busy = false; started = true;
+          label(Math.max(0, Math.min(last, i)));
+        }
+        f.el.addEventListener("keydown", function (e) {
+          var t = e.target;
+          if (e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t === f.stage) return;
+          if (e.key === "ArrowLeft" && index > 0) { e.preventDefault(); go(index - 1); }
+          else if (e.key === "ArrowRight" && index < last) { e.preventDefault(); go(index + 1); }
+        });
+        if (o.reset) o.reset();
+        label(0);
+        if (o.enter) o.enter(0);
+        f.onEnter(function () { if (!started && o.autoplay !== false) play(); });
+        return {
+          go: go, play: play, pause: pause, seek: seek,
+          next: function () { go(index + 1); }, prev: function () { go(index - 1); },
+          /* replay the current step, e.g. after a scenario control changed */
+          redo: function () { go(index, true); },
+          get index() { return index; }, get auto() { return auto; }, get length() { return list.length; },
+        };
+      },
       fail: function (err) {
         console.error(err);
         panel.prepend(Kit.h("pre", { class: "fig-error", text: "Figure \"" + f.id + "\" hit an error.\n\n" + (err && (err.stack || err.message) || err) }));
