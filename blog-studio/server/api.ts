@@ -38,7 +38,7 @@ export function studioApi(): Plugin {
           if (slug && !action && req.method === "GET") return send(res, 200, readPost(slug));
           if (slug && !action && req.method === "PUT") {
             const b = await body(req);
-            writePost({ slug, meta: b.meta, body: String(b.body ?? ""), simHtml: String(b.simHtml ?? ""), simJs: String(b.simJs ?? ""), simCss: String(b.simCss ?? "") });
+            writePost({ slug, meta: b.meta, body: String(b.body ?? ""), simHtml: String(b.simHtml ?? ""), simJs: String(b.simJs ?? ""), simCss: String(b.simCss ?? ""), figJs: String(b.figJs ?? ""), figCss: String(b.figCss ?? "") });
             return send(res, 200, { ok: true });
           }
           if (slug && action === "export" && req.method === "POST") {

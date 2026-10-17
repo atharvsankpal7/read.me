@@ -16,21 +16,28 @@ export interface PostMeta {
   draft?: boolean;
 }
 
-/** A post as the studio edits it. On disk: posts/<slug>/post.md (+ sim.html, sim.js, sim.css). */
+/** A post as the studio edits it. On disk: posts/<slug>/post.md (+ sim.html, sim.js, sim.css, figures.js, figures.css). */
 export interface PostSource {
   slug: string;
   meta: PostMeta;
-  /** Markdown body (no frontmatter). Put a line with just `::simulation` where the lab should go. */
+  /** Markdown body (no frontmatter). Put a line with just `::simulation` where the lab should go,
+   *  and `::figure <id> <caption>` lines where figures go. */
   body: string;
   simHtml: string;
   simJs: string;
   simCss: string;
+  /** figures.js: registers the small animated figures placed with `::figure <id>` lines. */
+  figJs: string;
+  /** figures.css: styles for those figures. */
+  figCss: string;
 }
 
 export interface PostSummary {
   slug: string;
   meta: PostMeta;
   hasSim: boolean;
+  /** Estimated reading time, used by the blog index previews. */
+  minutes?: number;
   /** Path of the exported file relative to the repo, when it exists. */
   exported: string | null;
   updatedAt: number;
@@ -59,6 +66,7 @@ export interface Assets {
   kitCss: string;
   hljsCss: string;
   pageJs: string;
+  figureCss: string;
 }
 
 export interface BuildOptions {
@@ -68,6 +76,8 @@ export interface BuildOptions {
   forceTheme?: "light" | "dark";
   /** Restore this scroll position after load (preview only). */
   scrollY?: number;
+  /** Older and newer published posts, for the Previous / Next links under the article. */
+  neighbors?: { prev?: { slug: string; title: string }; next?: { slug: string; title: string } };
 }
 
 export interface TocItem {

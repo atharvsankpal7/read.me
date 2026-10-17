@@ -7,590 +7,501 @@
   <title>Atharv Santosh Sankpal | Full-Stack Software Engineer</title>
   <meta name="description"
     content="Full-Stack Software Engineer with experience building scalable SaaS products and leading end-to-end delivery." />
+  <meta name="author" content="Atharv Sankpal" />
+  <meta name="theme-color" content="#f8f7f4" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20fill%3D%22%230000cd%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%225%22%20fill%3D%22%23f8f7f4%22%2F%3E%3C%2Fsvg%3E">
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Atharv Santosh Sankpal | Full-Stack Software Engineer" />
+  <meta property="og:description"
+    content="Full-Stack Software Engineer with experience building scalable SaaS products and leading end-to-end delivery." />
+  <meta name="twitter:card" content="summary" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="button.css">
-
-  <style>
-    [data-theme="dark"] {
-      --bg: #111827;
-      --fg: #f3f4f6;
-      --muted: #9ca3af;
-      --accent: #a78bfa;
-      --border: #374151;
-      --card-bg: #1f2937;
-      --hover-bg: rgba(139, 92, 246, 0.15);
-      --tab-bg: rgba(255, 255, 255, 0.05);
-      --date-bg: rgba(255, 255, 255, 0.05);
-      --date-border: rgba(255, 255, 255, 0.1);
-    }
-
-    .header-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 20px;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      margin-top: 8px;
-    }
-
-    .action-btn,
-    .theme-toggle {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      border: 1px solid var(--border);
-      background: var(--card-bg);
-      color: var(--fg);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-      flex-shrink: 0;
-      text-decoration: none;
-    }
-
-    .action-btn:hover,
-    .theme-toggle:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-  </style>
 </head>
 
 <body>
-  <main class="container">
-    <header>
-      <div class="header-top">
-        <h1>ATHARV SANTOSH SANKPAL</h1>
-        <div class="header-actions">
-          <a href="Atharv_Sankpal.pdf" download class="action-btn" aria-label="Download Resume">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-              <polyline points="10 9 9 9 8 9"></polyline>
-            </svg>
-          </a>
-          <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Dark Mode">
-            <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
-            <svg id="sun-icon" style="display: none;" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <circle cx="12" cy="12" r="5"></circle>
-              <line x1="12" y1="1" x2="12" y2="3"></line>
-              <line x1="12" y1="21" x2="12" y2="23"></line>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-              <line x1="1" y1="12" x2="3" y2="12"></line>
-              <line x1="21" y1="12" x2="23" y2="12"></line>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="header-main-content">
-        <div class="header-info">
-          <div class="title">Full-Stack Software Engineer</div>
-          <div class="meta">
-            <span>✉️ 01atharvsankpal@gmail.com</span>
-            <span>📍 Pune, India</span>
-          </div>
-          <div class="links">
-            <a href="https://github.com/atharvsankpal7" target="_blank">GitHub</a>
-            <a href="https://www.linkedin.com/in/atharv-sankpal-235a7730a/" target="_blank">LinkedIn</a>
-            <a href="https://www.youtube.com/@atharvsankpal" target="_blank">YouTube</a>
-            <a href="blogs/">Blogs</a>
-          </div>
-        </div>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
 
-        <!-- <div class="large-only"> -->
-        <style>
-          @media (max-width: 1024px) {
-            .large-only {
-              display: none;
-            }
-          }
-        </style>
+  <div class="page">
+    <nav class="topbar reveal" aria-label="Sections">
+      <ul>
+        <li><a href="#about">about</a></li>
+        <li><a href="#experience">experience</a></li>
+        <li><a href="#writing">writing</a></li>
+        <li><a href="#projects">projects</a></li>
+        <li><a href="#freelance">freelance</a></li>
+        <li><a href="#skills">skills</a></li>
+        <li><a href="#achievements">achievements</a></li>
+        <li><a href="#education">education</a></li>
+      </ul>
+    </nav>
 
-
-      </div>
-
+    <header class="hero reveal">
+      <span class="mark" aria-hidden="true"></span>
+      <h1><span class="name">Atharv Santosh Sankpal</span><span class="sr-only">, </span><span class="role">Full-Stack Software Engineer</span></h1>
     </header>
 
-    <section class="summary">
-      <h2>Professional Summary</h2>
+    <main id="main-content" class="reveal reveal-2">
+      <div class="hatch" aria-hidden="true"></div>
 
-      <p>
-        Full-stack software engineer with hands-on experience building and leading
-        automation SaaS products at scale.
-      </p>
-
-      <p>
-        Strong background in React, Node.js, Express.js, and PostgreSQL.
-      </p>
-
-      <p>
-        Proven ability to deliver end-to-end solutions, optimize performance, and
-        own product delivery.
-      </p>
-    </section>
-
-
-
-
-    <section class="tabs-container">
-      <div class="tabs-header" role="tablist" aria-label="Experience Categories">
-        <div class="tab-indicator"></div>
-        <button class="tab-btn" role="tab" aria-selected="true" aria-controls="professional"
-          id="tab-professional">Professional Experience</button>
-        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="projects" id="tab-projects">Personal
-          Projects</button>
-        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="freelance"
-          id="tab-freelance">Freelance</button>
-      </div>
-
-      <!-- Professional Experience -->
-      <div class="tab-content" id="professional" role="tabpanel" aria-labelledby="tab-professional">
-
-
-   
-        
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3>Software Engineer</h3>
-              <div class="exp-company"><a href="https://peopleblox.io" target="_blank">PeopleBlox</a></div>
-            </div>
-            <div class="exp-date">Sep 2025 – Present</div>
-          </div>
-          <ul class="exp-details">
-            <li>Developing end-to-end product features with frontend, backend, and SDET teams</li>
-            <li>Optimizing performance bottlenecks and fixing bugs by discussing with SDETs</li>
-            <li>Engineering technical solutions like streaming data, using queues, and async tasks</li>
-            <li>Designing and Writing Efficient SQL quries and exposing them via secure RESTful API</li>
-            <li>Implementation of pixel perfect designs provided by design engineers.</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">PostgreSQL</span>
-            <span class="tech-badge">Express.js</span>
-            <span class="tech-badge">PgBoss</span>
-            <span class="tech-badge">Streams</span>
-            <span class="tech-badge">Queues</span>
-            <span class="tech-badge">Async Tasks</span>
-            <span class="tech-badge">Google Cloud</span>
-          </div>
+      <!-- About -->
+      <section class="block about" id="about" aria-labelledby="about-title">
+        <h2 id="about-title">About</h2>
+        <div class="bio">
+          <p>Hey, I'm Atharv, a full-stack software engineer based in Pune. I build and lead automation SaaS
+            products at scale, mostly with React, Node.js, Express.js and PostgreSQL.</p>
+          <p>I like owning delivery end to end: from client requirements and UI flows to queries, queues and
+            deployment, and then making whatever turned out to be slow fast again.</p>
         </div>
+        <div class="socials">
+          <a href="https://github.com/atharvsankpal7" target="_blank" rel="noopener">github</a>
+          <span class="slash" aria-hidden="true">//</span>
+          <a href="https://www.linkedin.com/in/atharv-sankpal-235a7730a/" target="_blank" rel="noopener">linkedIn</a>
+          <span class="slash" aria-hidden="true">//</span>
+          <a href="https://www.youtube.com/@atharvsankpal" target="_blank" rel="noopener">youtube</a>
+          <span class="slash" aria-hidden="true">//</span>
+          <a href="blogs/">writing</a>
+          <span class="slash" aria-hidden="true">//</span>
+          <a href="mailto:01atharvsankpal@gmail.com">email</a>
+        </div>
+        <div>
+          <a class="btn" href="Atharv_Sankpal.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><polyline points="7 10 12 15 17 10"/><line x1="5" y1="20" x2="19" y2="20"/></svg>Download Resume</a>
+        </div>
+      </section>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3>Full-Stack Tech Lead (Contract)</h3>
-              <div class="exp-company"><a href="https://www.displaypromotion.in/" target="_blank">Display Promotion</a>
+      <div class="hatch" aria-hidden="true"></div>
+
+      <!-- Experience -->
+      <section class="block" id="experience" aria-labelledby="experience-title">
+        <h2 id="experience-title">Experience</h2>
+        <ul class="rows timeline">
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://peopleblox.io" target="_blank" rel="noopener">PeopleBlox<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Software Engineer<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Sep 2025 - present</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Convert requirements and ideas of  non-technical founders into product features</li>
+                  <li>Optimize overall application performance and keep codebase quality in check</li>
+                  <li>Revamped legacy core business logic, services, and database models, reducing new feature development cost by about 50%</li>
+                  <li>Migrate a multi-repo application into a mono-repo for better agentic efficiency and native type safety</li>
+                  <li>Implement streaming, async tasks, cron jobs, and a snapshot comparator for past entity versions</li>
+                  <li>Iteratively redesigning database schemas and apply best practices for OLAP query performance</li>
+                </ul>
+                <ul class="tech"><li>Next.js</li><li>PostgreSQL</li><li>Express.js</li><li>PgBoss</li><li>Streams</li><li>Queues</li><li>Async Tasks</li><li>Google Cloud</li></ul>
               </div>
-            </div>
-            <div class="exp-date">Apr 2025 – Sep 2025</div>
-          </div>
-          <ul class="exp-details">
-            <li>Gathered requirements directly from clients and translated them into functional and technical designs
-            </li>
-            <li>Designed UI flows, implemented frontend features, and architected codebases and refactored existing
-              codebases </li>
-            <li>Developed, deployed, and hosted full-stack applications on VPS environments</li>
-            <li>Led end-to-end product delivery</li>
-            <li>Mentored interns, reviewed implementations, and guided requirement execution</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">Express.js</span>
-            <span class="tech-badge">MongoDB</span>
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">Node.js</span>
-            <span class="tech-badge">VPS</span>
-            <span class="tech-badge">React-Native</span>
-          </div>
-        </div>
-
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3>Full-Stack Engineer Intern</h3>
-              <div class="exp-company"><a href="https://byteprolabs.com/" target="_blank">ByteProLabs</a></div>
-            </div>
-            <div class="exp-date">Jan 2025 – Mar 2025</div>
-          </div>
-          <ul class="exp-details">
-            <li>Delivered multiple full-stack projects under tight timelines</li>
-            <li>Reduced system latency by 60% through backend and query optimizations</li>
-            <li>Integrated AI agents and blockchain components</li>
-            <li>Improved system efficiency using scalable architecture decisions</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">AI Agents</span>
-            <span class="tech-badge">Blockchain</span>
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">Flask</span>
-            <span class="tech-badge">Ethereum</span>
-            <span class="tech-badge">Solidity</span>
-          </div>
-        </div>
-
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3>Full-Stack Developer Intern</h3>
-              <div class="exp-company"><a href="https://www.displaypromotion.in/" target="_blank">Display Promotion</a>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://www.displaypromotion.in/" target="_blank" rel="noopener">Display Promotion<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Full-Stack Tech Lead (Contract)<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Apr 2025 - Sep 2025</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Gathered requirements directly from clients and translated them into functional and technical designs</li>
+                  <li>Designed UI flows, implemented frontend features, architected new codebases and refactored existing ones</li>
+                  <li>Developed, deployed, and hosted full-stack applications on VPS environments</li>
+                  <li>Led end-to-end product delivery</li>
+                  <li>Mentored interns, reviewed implementations, and guided requirement execution</li>
+                </ul>
+                <ul class="tech"><li>Express.js</li><li>MongoDB</li><li>Next.js</li><li>Node.js</li><li>VPS</li><li>React Native</li></ul>
               </div>
-            </div>
-            <div class="exp-date">May 2024 – Dec 2024</div>
-          </div>
-          <ul class="exp-details">
-            <li>Built scalable backend services and responsive frontend applications</li>
-            <li>Designed and documented application architecture for automation tools</li>
-            <li>Collaborated on client-driven feature development and delivery</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">React.js</span>
-            <span class="tech-badge">Express.js</span>
-            <span class="tech-badge">Tailwind CSS</span>
-            <span class="tech-badge">Bootstrap</span>
-          </div>
-        </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://byteprolabs.com/" target="_blank" rel="noopener">ByteProLabs<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Full-Stack Engineer Intern<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Jan 2025 - Mar 2025</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Delivered multiple full-stack projects under tight timelines</li>
+                  <li>Reduced system latency by 60% through backend and query optimizations</li>
+                  <li>Integrated AI agents and blockchain components</li>
+                  <li>Improved system efficiency using scalable architecture decisions</li>
+                </ul>
+                <ul class="tech"><li>AI Agents</li><li>Blockchain</li><li>Next.js</li><li>Flask</li><li>Ethereum</li><li>Solidity</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://www.displaypromotion.in/" target="_blank" rel="noopener">Display Promotion<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Full-Stack Developer Intern<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">May 2024 - Dec 2024</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Built scalable backend services and responsive frontend applications</li>
+                  <li>Designed and documented application architecture for automation tools</li>
+                  <li>Collaborated on client-driven feature development and delivery</li>
+                </ul>
+                <ul class="tech"><li>React.js</li><li>Express.js</li><li>Tailwind CSS</li><li>Bootstrap</li></ul>
+              </div>
+            </details>
+          </li>
+        </ul>
+      </section>
 
-      </div>
+      <div class="hatch" aria-hidden="true"></div>
 
-      <!-- Personal Projects -->
-      <div class="tab-content" id="projects" role="tabpanel" aria-labelledby="tab-projects" hidden>
+      <!-- Writing -->
+      <section class="block" id="writing" aria-labelledby="writing-title">
+        <h2 id="writing-title">Writing</h2>
+        <ul class="rows posts">
+          <li class="row">
+            <a class="post-link" href="blogs/wal-delivery-system.html" data-preview-date="Oct 15, 2026"
+              data-preview-minutes="7"
+              data-preview-body="Kafka-backed log delivery to 1st and 3rd party services. A walkthrough of the design, with a live simulation you can break."><span>Building a WAL Delivery System with Kafka</span><span class="arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span></a>
+            <p class="row-side">2026-10-15</p>
+          </li>
+        </ul>
+      </section>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://edu-prep.vercel.app/" target="_blank">EduPrep – Mock Test Platform</a></h3>
-              <div class="exp-company">Personal Project</div>
-            </div>
-          </div>
-          <div class="exp-details">
-            <p>Platform for competitive exams with real-time analytics and proctoring.</p>
-          </div>
-          <div class="tech-stack">
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">Express.js</span>
-            <span class="tech-badge">PostgreSQL</span>
-            <span class="tech-badge">Prisma</span>
-            <span class="tech-badge">Flask</span>
-            <span class="tech-badge">OpenCV</span>
-          </div>
-        </div>
+      <div class="hatch" aria-hidden="true"></div>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://github.com/atharvsankpal7/dp-todo-attendance" target="_blank">Automation SaaS</a>
-              </h3>
-              <div class="exp-company">Display Promotion</div>
-            </div>
-          </div>
-          <div class="exp-details">
-            <p>Internal automation platform improving operational efficiency.</p>
-          </div>
-          <div class="tech-stack">
-            <span class="tech-badge">Express.js</span>
-            <span class="tech-badge">Flask</span>
-            <span class="tech-badge">AWS</span>
-            <span class="tech-badge">MongoDB</span>
-            <span class="tech-badge">Google Maps</span>
-          </div>
-        </div>
+      <!-- Projects -->
+      <section class="block" id="projects" aria-labelledby="projects-title">
+        <h2 id="projects-title">Projects</h2>
+        <ul class="rows">
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://edu-prep.vercel.app/" target="_blank" rel="noopener">EduPrep<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Mock test platform<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Next.js · PostgreSQL</p>
+              </summary>
+              <div class="entry-body">
+                <p>Platform for competitive exams with real-time analytics and proctoring.</p>
+                <ul class="tech"><li>Next.js</li><li>Express.js</li><li>PostgreSQL</li><li>Prisma</li><li>Flask</li><li>OpenCV</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://github.com/atharvsankpal7/dp-todo-attendance" target="_blank" rel="noopener">Automation SaaS<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Internal platform for Display Promotion<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Express.js · MongoDB</p>
+              </summary>
+              <div class="entry-body">
+                <p>Internal automation platform improving operational efficiency.</p>
+                <ul class="tech"><li>Express.js</li><li>Flask</li><li>AWS</li><li>MongoDB</li><li>Google Maps</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://github.com/atharvsankpal7/AgriAI" target="_blank" rel="noopener">AgriAI<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Crop disease detection for farmers<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">TensorFlow · React</p>
+              </summary>
+              <div class="entry-body">
+                <p>AI-powered SaaS for government bodies and farmers. Features a CNN classification model for disease
+                  detection with 99.82% accuracy.</p>
+                <p>Implemented robust access control management for various user roles like admins and farmers.</p>
+                <ul class="tech"><li>Python</li><li>TensorFlow/Keras</li><li>CNN</li><li>React.js</li><li>Node.js</li><li>Express.js</li><li>MongoDB</li><li>RBAC</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://github.com/atharvsankpal7/ai-image-editing-saas" target="_blank" rel="noopener">AI Image Editing SaaS<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Multi-model media editing with credits<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Next.js · Stripe</p>
+              </summary>
+              <div class="entry-body">
+                <p>Multi-service AI SaaS featuring different multimedia model consumption provided by Cloudinary and a
+                  credit system for SaaS usage.</p>
+                <ul class="tech"><li>Next.js</li><li>TypeScript</li><li>MongoDB</li><li>Zod</li><li>Stripe</li><li>Cloudinary</li></ul>
+              </div>
+            </details>
+          </li>
+        </ul>
+      </section>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://github.com/atharvsankpal7/AgriAI" target="_blank">AgriAI</a></h3>
-              <div class="exp-company">Personal Project</div>
-            </div>
-          </div>
-          <div class="exp-details">
-            <p>AI-powered SaaS for government bodies and farmers. Features a CNN classification model for disease
-              detection with 99.82% accuracy.</p>
-            <p>Implemented robust access control management for various user roles like admins and farmers.</p>
-          </div>
-          <div class="tech-stack">
-            <span class="tech-badge">Python</span>
-            <span class="tech-badge">TensorFlow/Keras</span>
-            <span class="tech-badge">CNN</span>
-            <span class="tech-badge">React.js</span>
-            <span class="tech-badge">Node.js</span>
-            <span class="tech-badge">Express.js</span>
-            <span class="tech-badge">MongoDB</span>
-            <span class="tech-badge">RBAC</span>
-          </div>
-        </div>
-
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://github.com/atharvsankpal7/ai-image-editing-saas" target="_blank">AI Image Editing
-                  SaaS</a></h3>
-              <div class="exp-company">Personal Project</div>
-            </div>
-          </div>
-          <div class="exp-details">
-            <p>Multi-service AI SaaS featuring different multimedia model consumption provided by Cloudinary and a
-              credit system for SaaS usage.</p>
-          </div>
-          <div class="tech-stack">
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">TypeScript</span>
-            <span class="tech-badge">MongoDB</span>
-            <span class="tech-badge">Zod</span>
-            <span class="tech-badge">Stripe</span>
-            <span class="tech-badge">Cloudinary</span>
-          </div>
-        </div>
-
-      </div>
+      <div class="hatch" aria-hidden="true"></div>
 
       <!-- Freelance -->
-      <div class="tab-content" id="freelance" role="tabpanel" aria-labelledby="tab-freelance" hidden>
+      <section class="block" id="freelance" aria-labelledby="freelance-title">
+        <h2 id="freelance-title">Freelance</h2>
+        <ul class="rows">
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://rasayanischoolofscience.com/" target="_blank" rel="noopener">Learning Management System<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Course platform with protected PDF and audio<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Next.js · MongoDB</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Built a course platform where students access PDF and audio content through an in-app viewer and
+                    audio player</li>
+                  <li>Streams student files through access-checked routes; files are never exposed as proxied signed URLs</li>
+                  <li>Accepts requests only from the in-app viewer and audio player, using browser Fetch Metadata to block
+                    direct links and downloads</li>
+                  <li>Entity-based access control, database-backed sessions with one active device per student, and
+                    structured logging with pino</li>
+                </ul>
+                <ul class="tech"><li>Next.js</li><li>TypeScript</li><li>MongoDB</li><li>Better Auth</li><li>Cloudflare R2</li><li>pino</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://prernasaree.com/" target="_blank" rel="noopener">Prerna Saree<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">E-commerce storefront with admin panel<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Next.js · PostgreSQL</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Built a full e-commerce storefront with an admin panel for managing products and store content</li>
+                  <li>Implemented dynamic reviews and a related-products system, driven from Postgres</li>
+                  <li>Deployed on Cloudflare</li>
+                </ul>
+                <ul class="tech"><li>Next.js</li><li>PostgreSQL</li><li>NextAuth.js</li><li>Cloudflare</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://www.sscreation.online/" target="_blank" rel="noopener">SSCreation<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Digital goods store with payments<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Next.js · Razorpay</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Designed and created a full-stack application for selling digital items with payment integration
+                    (Razorpay)</li>
+                  <li>Implemented OTP auth (no login required), email support (Nodemailer), and micro-animations</li>
+                  <li>Built a fully customizable admin panel allowing real-time updates to nav, content, footer, and
+                    products</li>
+                </ul>
+                <ul class="tech"><li>Next.js</li><li>Server Actions</li><li>MongoDB</li><li>ShadcnUI</li><li>Razorpay</li><li>Cloudinary</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://studiosquanta.com/" target="_blank" rel="noopener">StudioSquanta<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Pixel-perfect site from Figma<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">React · Framer Motion</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Converted Figma design into a pixel-perfect website with full responsiveness</li>
+                  <li>Added custom animations and micro-animations to various sections</li>
+                </ul>
+                <ul class="tech"><li>React</li><li>Tailwind CSS</li><li>Framer Motion</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://altecht.com/" target="_blank" rel="noopener">Altecht<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Responsive site with secure forms<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">React · PHP</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Converted Figma design into a pixel-perfect, responsive website</li>
+                  <li>Integrated PHP for secure form handling</li>
+                </ul>
+                <ul class="tech"><li>React</li><li>Tailwind CSS</li><li>PHP</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://www.displaypromotion.in/" target="_blank" rel="noopener">Display Promotion<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Portfolio for a digital marketing agency<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Next.js · Spline 3D</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Developed a professional portfolio for a digital marketing agency</li>
+                  <li>Integrated Spline for 3D interactive objects and MagicUI for effects</li>
+                </ul>
+                <ul class="tech"><li>Next.js</li><li>Spline 3D</li><li>Tailwind CSS</li><li>MagicUI</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://www.samarthbusinessgroup.com/" target="_blank" rel="noopener">Samarth Business Group<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Minimal, fast business portfolio<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">11ty · Bootstrap</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Sleek and minimal portfolio for a reputed business group</li>
+                  <li>Focused on simplicity and performance</li>
+                </ul>
+                <ul class="tech"><li>11ty</li><li>Bootstrap</li><li>HTML</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://www.musclebuildnutrition.co.in/" target="_blank" rel="noopener">MuscleBuild Nutrition<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Product showcase driving offline sales<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Next.js · WhatsApp API</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Online product showcase designed to drive offline sales</li>
+                  <li>Includes admin panel for full customization and WhatsApp redirection</li>
+                </ul>
+                <ul class="tech"><li>Next.js</li><li>Admin Panel</li><li>WhatsApp API</li></ul>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="entry">
+              <summary class="row">
+                <div class="row-main">
+                  <a class="row-title" href="https://www.shubharambhevents.co.in/" target="_blank" rel="noopener">Shubharambh Events<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></a>
+                  <h3 class="row-sub">Event management site with admin panel<span class="toggle" aria-hidden="true"></span></h3>
+                </div>
+                <p class="row-side">Next.js · MongoDB</p>
+              </summary>
+              <div class="entry-body">
+                <ul>
+                  <li>Event management website with dynamic content</li>
+                  <li>Includes admin panel for full customization and WhatsApp redirection</li>
+                </ul>
+                <ul class="tech"><li>Next.js</li><li>MongoDB</li><li>Framer Motion</li><li>Tailwind CSS</li></ul>
+              </div>
+            </details>
+          </li>
+        </ul>
+      </section>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://rasayanischoolofscience.com/" target="_blank">Learning Management System (LMS)</a></h3>
-            </div>
-          </div>
-          <ul class="exp-details">
-            <li>Built a course platform where students access PDF and audio content through an in-app viewer and audio
-              player</li>
-            <li>Streams student files through access-checked routes; files are never exposed as proxied signed URLs</li>
-            <li>Accepts requests only from the in-app viewer and audio player, using browser Fetch Metadata to block
-              direct links and downloads</li>
-            <li>Entity-based access control, database-backed sessions with one active device per student, and
-              structured logging with pino</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">TypeScript</span>
-            <span class="tech-badge">MongoDB</span>
-            <span class="tech-badge">Better Auth</span>
-            <span class="tech-badge">Cloudflare R2</span>
-            <span class="tech-badge">pino</span>
-          </div>
-        </div>
+      <div class="hatch" aria-hidden="true"></div>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://prernasaree.com/" target="_blank">Prerna Saree (E-commerce)</a></h3>
-            </div>
-          </div>
-          <ul class="exp-details">
-            <li>Built a full e-commerce storefront with an admin panel for managing products and store content</li>
-            <li>Implemented dynamic reviews and a related-products system, driven from Postgres</li>
-            <li>Deployed on Cloudflare</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">PostgreSQL</span>
-            <span class="tech-badge">NextAuth.js</span>
-            <span class="tech-badge">Cloudflare</span>
-          </div>
-        </div>
+      <!-- Skills -->
+      <section class="block" id="skills" aria-labelledby="skills-title">
+        <h2 id="skills-title">Skills</h2>
+        <dl class="skills">
+          <dt>Languages</dt>
+          <dd><ul class="chips"><li>JavaScript</li><li>TypeScript</li><li>Java</li><li>Python</li><li>C/C++</li><li>PHP</li></ul></dd>
+          <dt>Frontend</dt>
+          <dd><ul class="chips"><li>React.js</li><li>Next.js</li><li>React Native</li><li>Tailwind CSS</li><li>Bootstrap</li></ul></dd>
+          <dt>Backend</dt>
+          <dd><ul class="chips"><li>Node.js</li><li>Express.js</li><li>Flask</li><li>Laravel</li></ul></dd>
+          <dt>Databases</dt>
+          <dd><ul class="chips"><li>PostgreSQL</li><li>MongoDB</li></ul></dd>
+          <dt>Tools</dt>
+          <dd><ul class="chips"><li>Prisma</li><li>Zod</li><li>AWS</li><li>Docker</li><li>Git</li><li>Stripe</li><li>Cloudinary</li></ul></dd>
+          <dt>Concepts</dt>
+          <dd><ul class="chips"><li>UX</li><li>REST APIs</li><li>Microservices</li><li>System Design</li><li>Performance Optimization</li></ul></dd>
+        </dl>
+      </section>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://www.sscreation.online/" target="_blank">SSCreation</a></h3>
-            </div>
-          </div>
-          <ul class="exp-details">
-            <li>Designed and created a full-stack application for selling digital items with payment integration
-              (Razorpay)</li>
-            <li>Implemented OTP auth (no login required), email support (Nodemailer), and micro-animations</li>
-            <li>Built a fully customizable admin panel allowing real-time updates to nav, content, footer, and products
-            </li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">Server Actions</span>
-            <span class="tech-badge">MongoDB</span>
-            <span class="tech-badge">ShadcnUI</span>
-            <span class="tech-badge">Razorpay</span>
-            <span class="tech-badge">Cloudinary</span>
-          </div>
-        </div>
+      <div class="hatch" aria-hidden="true"></div>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://studiosquanta.com/" target="_blank">StudioSquanta</a></h3>
-            </div>
-          </div>
-          <ul class="exp-details">
-            <li>Converted Figma design into a pixel-perfect website with full responsiveness</li>
-            <li>Added custom animations and micro-animations to various sections</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">React</span>
-            <span class="tech-badge">Tailwind CSS</span>
-            <span class="tech-badge">Framer Motion</span>
-          </div>
-        </div>
+      <!-- Achievements -->
+      <section class="block" id="achievements" aria-labelledby="achievements-title">
+        <h2 id="achievements-title">Achievements</h2>
+        <ul class="cells">
+          <li class="row">
+            <div class="row-main"><span class="row-title plain">Founding Engineer &amp; Team Lead</span><h3 class="row-sub">Display Promotion</h3></div>
+            <p class="row-side">Leadership</p>
+          </li>
+          <li class="row">
+            <div class="row-main"><span class="row-title plain">ADCET Hackathon</span><h3 class="row-sub">Finalist</h3></div>
+            <p class="row-side">2025</p>
+          </li>
+          <li class="row">
+            <div class="row-main"><span class="row-title plain">Web Master</span><h3 class="row-sub">Runner-Up</h3></div>
+            <p class="row-side">2024</p>
+          </li>
+          <li class="row">
+            <div class="row-main"><span class="row-title plain">Codement Hackathon</span><h3 class="row-sub">Finalist</h3></div>
+            <p class="row-side">2024</p>
+          </li>
+          <li class="row">
+            <div class="row-main"><span class="row-title plain">Code2Compute</span><h3 class="row-sub">Winner</h3></div>
+            <p class="row-side">2023</p>
+          </li>
+          <li class="row">
+            <div class="row-main"><span class="row-title plain">C++ Bug Buster</span><h3 class="row-sub">Winner</h3></div>
+            <p class="row-side">2023</p>
+          </li>
+          <li class="row">
+            <div class="row-main"><span class="row-title plain">Code Clash</span><h3 class="row-sub">Winner</h3></div>
+            <p class="row-side">2022</p>
+          </li>
+        </ul>
+      </section>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://altecht.com/" target="_blank">Altecht</a></h3>
-            </div>
-          </div>
-          <ul class="exp-details">
-            <li>Converted Figma design into a pixel-perfect, responsive website</li>
-            <li>Integrated PHP for secure form handling</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">React</span>
-            <span class="tech-badge">Tailwind CSS</span>
-            <span class="tech-badge">PHP</span>
-          </div>
-        </div>
+      <div class="hatch" aria-hidden="true"></div>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://www.displaypromotion.in/" target="_blank">Display Promotion</a></h3>
-            </div>
-          </div>
-          <ul class="exp-details">
-            <li>Developed a professional portfolio for a digital marketing agency</li>
-            <li>Integrated Spline for 3D interactive objects and MagicUI for effects</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">Spline 3D</span>
-            <span class="tech-badge">Tailwind CSS</span>
-            <span class="tech-badge">MagicUI</span>
-          </div>
-        </div>
+      <!-- Education -->
+      <section class="block" id="education" aria-labelledby="education-title">
+        <h2 id="education-title">Education</h2>
+        <ul class="rows">
+          <li class="row">
+            <div class="row-main"><span class="row-title plain">Shivaji University</span><h3 class="row-sub">B.Tech in Computer Science &amp; Engineering · CGPA 8.3</h3></div>
+            <p class="row-side">2021 - 2025</p>
+          </li>
+        </ul>
+      </section>
 
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://www.samarthbusinessgroup.com/" target="_blank">Samarth Business Group</a></h3>
-            </div>
-          </div>
-          <ul class="exp-details">
-            <li>Sleek and minimal portfolio for a reputed business group</li>
-            <li>Focused on simplicity and performance</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">11ty</span>
-            <span class="tech-badge">Bootstrap</span>
-            <span class="tech-badge">HTML</span>
-          </div>
-        </div>
-
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://www.musclebuildnutrition.co.in/" target="_blank">MuscleBuild Nutrition</a></h3>
-            </div>
-          </div>
-          <ul class="exp-details">
-            <li>Online product showcase designed to drive offline sales</li>
-            <li>Includes admin panel for full customization and WhatsApp redirection</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">Admin Panel</span>
-            <span class="tech-badge">WhatsApp API</span>
-          </div>
-        </div>
-
-        <div class="exp-item">
-          <div class="exp-header">
-            <div class="exp-title">
-              <h3><a href="https://www.shubharambhevents.co.in/" target="_blank">Shubharambh Events</a></h3>
-            </div>
-          </div>
-          <ul class="exp-details">
-            <li>Event management website with dynamic content</li>
-            <li>Includes admin panel for full customization and WhatsApp redirection</li>
-          </ul>
-          <div class="tech-stack">
-            <span class="tech-badge">Next.js</span>
-            <span class="tech-badge">MongoDB</span>
-            <span class="tech-badge">Framer Motion</span>
-            <span class="tech-badge">Tailwind CSS</span>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
-
-    <section>
-      <h2>Technical Skills</h2>
-      <div class="grid">
-        <div class="card">
-          <h3>Languages</h3>
-          <p>JavaScript, TypeScript, Java, Python, C/C++, PHP</p>
-        </div>
-        <div class="card">
-          <h3>Frontend</h3>
-          <p>React.js, Next.js, React Native, Tailwind CSS, Bootstrap</p>
-        </div>
-        <div class="card">
-          <h3>Backend</h3>
-          <p>Node.js, Express.js, Flask, Laravel</p>
-        </div>
-        <div class="card">
-          <h3>Databases</h3>
-          <p>PostgreSQL, MongoDB</p>
-        </div>
-        <div class="card">
-          <h3>Tools & Platforms</h3>
-          <p>Prisma, Zod, AWS, Docker, Git, Stripe, Cloudinary</p>
-        </div>
-        <div class="card">
-          <h3>Concepts</h3>
-          <p>UX, REST APIs, Microservices, System Design, Performance Optimization</p>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <h2>Leadership & Achievements</h2>
-      <ul>
-        <li>Founding Engineer & Team Lead (Display Promotion)</li>
-        <li>Winner: Code2Compute (2023), C++ Bug Buster (2023), Code Clash (2022)</li>
-        <li>Runner-Up: Web Master (2024)</li>
-        <li>Finalist: ADCET Hackathon (2025), Codement Hackathon (2024)</li>
-      </ul>
-    </section>
-
-    <section>
-      <h2>Education</h2>
-      <p>
-        B.Tech in Computer Science & Engineering<br />
-        Shivaji University<br />
-        CGPA: 8.3 | 2021 – 2025
-      </p>
-    </section>
-
-    <footer>
+      
+        <footer>
       <div class="button-wrapper">
        <style>
           @media (max-width: 1024px) {
@@ -715,125 +626,101 @@
         </label>
       </div>
     </footer>
-  </main>
-  <script>
-    (function () {
-      const savedTheme = localStorage.getItem('theme');
-      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    </main>
+  </div>
 
-      // If no saved theme, follow system. If saved theme is dark, use dark.
-      if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
-        document.documentElement.setAttribute('data-theme', 'dark');
+  <script>
+    /* Section bar: marks the section under the bar and keeps that link in view on narrow screens. */
+    (function () {
+      var bar = document.querySelector('.topbar ul');
+      var links = Array.prototype.slice.call(bar.querySelectorAll('a[href^="#"]'));
+      var targets = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); });
+      var active = null, queued = false;
+
+      function update() {
+        queued = false;
+        var line = bar.offsetHeight + 72, idx = 0;
+        targets.forEach(function (t, i) { if (t.getBoundingClientRect().top <= line) idx = i; });
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) idx = targets.length - 1;
+
+        var a = links[idx];
+        if (a === active) return;
+        if (active) active.removeAttribute('aria-current');
+        a.setAttribute('aria-current', 'location');
+        active = a;
+
+        var left = a.offsetLeft, right = left + a.offsetWidth;
+        if (left < bar.scrollLeft || right > bar.scrollLeft + bar.clientWidth) {
+          bar.scrollTo({ left: left - 16, behavior: 'smooth' });
+        }
       }
+
+      window.addEventListener('scroll', function () {
+        if (!queued) { queued = true; requestAnimationFrame(update); }
+      }, { passive: true });
+      window.addEventListener('resize', update);
+      update();
     })();
 
-    document.addEventListener('DOMContentLoaded', () => {
-      // Theme Toggle Logic
-      const themeToggle = document.getElementById('theme-toggle');
-      const moonIcon = document.getElementById('moon-icon');
-      const sunIcon = document.getElementById('sun-icon');
-      const html = document.documentElement;
+    /* Writing preview: hovering or focusing a post link shows its date, read time and summary. */
+    (function () {
+      var links = document.querySelectorAll('.post-link[data-preview-body]');
+      if (!links.length || !window.matchMedia('(hover: hover)').matches) return;
 
-      function updateIcons() {
-        const isDark = html.getAttribute('data-theme') === 'dark';
-        moonIcon.style.display = isDark ? 'none' : 'block';
-        sunIcon.style.display = isDark ? 'block' : 'none';
+      var pop = document.createElement('div');
+      pop.className = 'popover';
+      pop.setAttribute('aria-hidden', 'true');
+      pop.innerHTML = '<h3></h3><p class="meta"></p><p class="body"></p>';
+      document.body.appendChild(pop);
+
+      var current = null;
+
+      function show(a) {
+        current = a;
+        pop.querySelector('h3').textContent = a.textContent.trim();
+        pop.querySelector('.meta').textContent = a.dataset.previewDate + ' · ' + a.dataset.previewMinutes + ' min read';
+        pop.querySelector('.body').textContent = a.dataset.previewBody;
+
+        var r = a.getBoundingClientRect(), gap = 8, h = pop.offsetHeight;
+        var top = r.bottom + gap + h <= window.innerHeight ? r.bottom + gap : r.top - gap - h;
+        var left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 16);
+        pop.style.top = Math.max(8, top) + 'px';
+        pop.style.left = Math.max(8, left) + 'px';
+        pop.classList.add('show');
       }
+      function hide() { current = null; pop.classList.remove('show'); }
 
-      // Initialize icons
-      updateIcons();
-
-      themeToggle.addEventListener('click', () => {
-        const isDark = html.getAttribute('data-theme') === 'dark';
-        if (isDark) {
-          html.removeAttribute('data-theme');
-          localStorage.setItem('theme', 'light');
-        } else {
-          html.setAttribute('data-theme', 'dark');
-          localStorage.setItem('theme', 'dark');
-        }
-        updateIcons();
+      links.forEach(function (a) {
+        a.addEventListener('mouseenter', function () { show(a); });
+        a.addEventListener('focus', function () { show(a); });
+        a.addEventListener('mouseleave', hide);
+        a.addEventListener('blur', hide);
       });
+      window.addEventListener('scroll', function () {
+        if (!current) return;
+        if (current.matches(':hover') || current === document.activeElement) show(current);
+        else hide();
+      }, { passive: true });
+    })();
 
-      // Listen for system theme changes
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-        // Only update if the user hasn't manually set a preference
-        if (!localStorage.getItem('theme')) {
-          if (e.matches) {
-            html.setAttribute('data-theme', 'dark');
-          } else {
-            html.removeAttribute('data-theme');
-          }
-          updateIcons();
-        }
+    /* Get Resume button: the first click on the button downloads the resume one time.
+       It listens for "change" on the checkbox, which fires once for each click on the label. */
+    (function () {
+      var toggle = document.getElementById('button');
+      if (!toggle) return;
+      var downloaded = false;
+
+      toggle.addEventListener('change', function () {
+        if (downloaded) return;
+        downloaded = true;
+        var link = document.createElement('a');
+        link.href = 'Atharv_Sankpal.pdf';
+        link.download = 'Atharv_Sankpal.pdf';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
       });
-
-      // Hire Me Button Logic
-      const hireMeBtn = document.getElementById('hire-me-btn');
-      if (hireMeBtn) {
-        hireMeBtn.addEventListener('click', () => {
-          hireMeBtn.textContent = "Redirecting...";
-          setTimeout(() => {
-            window.location.href = "mailto:01atharvsankpal@gmail.com";
-          }, 3000);
-        });
-      }
-
-      // Tabs Logic
-      const tabs = document.querySelectorAll('.tab-btn');
-      const contents = document.querySelectorAll('.tab-content');
-      const indicator = document.querySelector('.tab-indicator');
-
-      function updateIndicator(tab) {
-        if (!tab) return;
-        indicator.style.width = `${tab.offsetWidth}px`;
-        indicator.style.transform = `translateX(${tab.offsetLeft}px)`;
-      }
-
-      // Initialize indicator position
-      const activeTab = document.querySelector('.tab-btn[aria-selected="true"]');
-      updateIndicator(activeTab);
-
-      // Update on resize
-      window.addEventListener('resize', () => {
-        const currentActive = document.querySelector('.tab-btn[aria-selected="true"]');
-        updateIndicator(currentActive);
-      });
-
-      tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          // Deselect all
-          tabs.forEach(t => t.setAttribute('aria-selected', 'false'));
-          contents.forEach(c => c.hidden = true);
-
-          // Select clicked
-          tab.setAttribute('aria-selected', 'true');
-          const targetId = tab.getAttribute('aria-controls');
-          document.getElementById(targetId).hidden = false;
-
-          // Move indicator
-          updateIndicator(tab);
-        });
-      });
-      const downloadBtn = document.querySelector('.button-wrapper');
-      if (downloadBtn) {
-        // Download only once: later clicks (including closing the button) must not re-download
-        let hasDownloaded = false;
-        downloadBtn.addEventListener('click', (e) => {
-         // e.preventDefault();
-          e.stopPropagation();
-          if (hasDownloaded) return;
-          hasDownloaded = true;
-          const link = document.createElement('a');
-          link.href = 'Atharv_Sankpal.pdf';
-          link.download = 'Atharv_Sankpal.pdf';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        });
-      }
-
-    });
+    })();
   </script>
 </body>
 

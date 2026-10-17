@@ -1,0 +1,66 @@
+/* Post-specific figure pieces: the outbox table and the retry ladder. Colours come from template/figure.css. */
+
+/* ---------- outbox ---------- */
+.ob-stage { overflow-x: auto; }
+.ob-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 2px 0 14px; }
+.ob-count { display: inline-flex; align-items: baseline; gap: 7px; padding: 5px 10px; border: 1px solid var(--f-line-2); border-radius: 0; background: var(--f-bg); }
+.ob-count b { color: var(--f-ink); font-size: 15px; }
+.ob-count span { color: var(--f-muted); font-size: 11.5px; }
+.ob-count.st-processing { border-color: color-mix(in srgb, var(--f-pg) 55%, transparent); }
+.ob-count.st-processed { border-color: color-mix(in srgb, var(--f-prod) 55%, transparent); }
+.ob-count.st-stored { border-color: color-mix(in srgb, var(--f-ok) 55%, transparent); }
+.ob-count.st-dlq { border-color: color-mix(in srgb, var(--f-bad) 55%, transparent); }
+.ob-arrow { color: var(--f-faint); }
+.ob-arrow.to-dlq { margin-left: 12px; color: var(--f-muted); font-size: 11px; }
+.ob-main { display: grid; grid-template-columns: minmax(520px, 1fr) 200px; gap: 16px; min-width: 740px; }
+.ob-table { border: 1px solid var(--f-line-2); border-radius: 0; overflow: hidden; background: var(--f-bg); }
+.ob-row {
+  display: grid; grid-template-columns: 70px 1fr 120px 100px 80px; align-items: center; gap: 10px;
+  padding: 0 14px; height: 31px; border-top: 1px solid var(--f-line); font-size: 12px; color: var(--f-soft);
+  transition: background-color .35s ease;
+}
+.ob-row.ob-th { border-top: 0; height: 30px; color: var(--f-faint); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; background: var(--f-bg-2); }
+.ob-row .k { color: var(--f-muted); }
+.ob-row .chip { justify-self: start; padding: 1px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--f-line-2); color: var(--f-muted); transition: all .3s ease; }
+.ob-row .att { color: var(--f-faint); letter-spacing: 2px; font-size: 10px; }
+.ob-row .lock { color: var(--f-soft); font-size: 11px; }
+.ob-row.st-processing { background: color-mix(in srgb, var(--f-pg) 9%, transparent); }
+.ob-row.st-processing .chip { border-color: var(--f-pg); color: var(--f-pg); }
+.ob-row.st-processed .chip { border-color: var(--f-prod); color: var(--f-prod); }
+.ob-row.st-sending .chip { border-color: var(--f-kafka); color: var(--f-kafka); }
+.ob-row.st-stored .chip { border-color: var(--f-ok); color: var(--f-ok); }
+.ob-row.st-stored { color: var(--f-muted); }
+.ob-row.st-dlq .chip { border-color: var(--f-bad); color: var(--f-bad); }
+.ob-row.st-dlq { background: color-mix(in srgb, var(--f-bad) 8%, transparent); }
+.ob-row.st-processing .att, .ob-row.st-dlq .att { color: var(--f-soft); }
+.ob-row.skip { animation: ob-skip .5s ease; }
+.ob-row.expired { animation: ob-flash-warn .9s ease; }
+.ob-row.bad { animation: ob-flash-bad .9s ease; }
+.ob-row.ok { animation: ob-flash-ok .9s ease; }
+@keyframes ob-skip { 50% { box-shadow: inset 3px 0 0 var(--f-accent); background: var(--accent-soft, #0000cd0f); } }
+@keyframes ob-flash-warn { 30% { background: color-mix(in srgb, var(--f-warn) 22%, transparent); } }
+@keyframes ob-flash-bad { 30% { background: color-mix(in srgb, var(--f-bad) 22%, transparent); } }
+@keyframes ob-flash-ok { 30% { background: color-mix(in srgb, var(--f-ok) 20%, transparent); } }
+.ob-side { display: flex; flex-direction: column; gap: 8px; }
+.ob-worker, .ob-sink { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 9px 12px; border: 1px solid var(--f-line-2); border-radius: 0; background: var(--f-bg); font-size: 11.5px; }
+.ob-worker b, .ob-sink b { color: var(--f-ink); font-size: 13px; }
+.ob-worker span, .ob-sink span { color: var(--f-muted); }
+.ob-worker.dead { border-color: color-mix(in srgb, var(--f-bad) 60%, transparent); background: color-mix(in srgb, var(--f-bad) 8%, transparent); }
+.ob-worker.dead span { color: var(--f-bad); }
+.ob-sink { border-color: color-mix(in srgb, var(--f-kafka) 50%, transparent); }
+.ob-sql { margin: 4px 2px 0; color: var(--f-faint); font-size: 11px; line-height: 1.6; }
+.ob-sql em { color: var(--f-accent); font-style: normal; }
+
+/* ---------- retry ladder ---------- */
+.lad { display: flex; align-items: center; flex-wrap: nowrap; gap: 0; margin: 2px 0 6px; min-width: 640px; }
+.lad-step { flex: none; padding: 6px 11px; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); border-radius: 0; background: color-mix(in srgb, var(--c) 8%, var(--f-bg)); color: var(--f-ink); font-size: 12px; font-weight: 600; }
+.lad-arrow { position: relative; flex: 1; height: 2px; min-width: 28px; margin: 0 6px; background: var(--f-line-2); overflow: hidden; }
+.lad-arrow i { position: absolute; top: -1px; left: -6px; width: 6px; height: 4px; border-radius: 0; background: var(--f-retry); animation: lad-move 2.4s linear infinite; }
+.lad-arrow i:nth-child(2) { animation-delay: .8s; }
+.lad-arrow i:nth-child(3) { animation-delay: 1.6s; }
+@keyframes lad-move { to { left: 100%; } }
+.lad-note { margin: 0 0 14px; color: var(--f-muted); font-size: 11.5px; min-width: 640px; }
+.lad-note b { color: var(--f-bad); font-weight: 600; }
+
+/* labels in the outbox counters and the retry ladder are diagram parts, not copyable text */
+.ob-flow, .ob-th, .ob-worker, .ob-sink, .lad { -webkit-user-select: none; user-select: none; }
