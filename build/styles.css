@@ -920,14 +920,32 @@ a.row-title:hover svg {
     }
 }
 
+/* Get Resume button (button.css) */
+footer {
+    border-top: 1px solid var(--border);
+    padding-top: 40px;
+    font-size: 0.95rem;
+    color: var(--muted);
+    text-align: center;
+}
+
+.button-wrapper {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+}
+
 @media (prefers-reduced-motion: reduce) {
     html {
         scroll-behavior: auto;
     }
 
-    *,
-    *::before,
-    *::after {
+    /* The Get Resume button keeps its animation: without it the lid never opens. */
+    *:not(.area, .area *),
+    *:not(.area, .area *)::before,
+    *:not(.area, .area *)::after {
         animation: none !important;
         transition: none !important;
     }
