@@ -9,6 +9,7 @@
     content="Full-Stack Software Engineer with experience building scalable SaaS products and leading end-to-end delivery." />
   <meta name="author" content="Atharv Sankpal" />
   <meta name="theme-color" content="#f8f7f4" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20fill%3D%22%230000cd%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%225%22%20fill%3D%22%23f8f7f4%22%2F%3E%3C%2Fsvg%3E">
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Atharv Santosh Sankpal | Full-Stack Software Engineer" />
   <meta property="og:description"
@@ -23,11 +24,30 @@
   <a class="skip-link" href="#main-content">Skip to main content</a>
 
   <div class="page">
-    <header class="stack reveal">
-      <h1 class="sr-only">Atharv Santosh Sankpal, Full-Stack Software Engineer</h1>
+    <nav class="topbar reveal" aria-label="Sections">
+      <ul>
+        <li><a href="#about">about</a></li>
+        <li><a href="#experience">experience</a></li>
+        <li><a href="#writing">writing</a></li>
+        <li><a href="#projects">projects</a></li>
+        <li><a href="#freelance">freelance</a></li>
+        <li><a href="#skills">skills</a></li>
+        <li><a href="#achievements">achievements</a></li>
+        <li><a href="#education">education</a></li>
+      </ul>
+    </nav>
+
+    <header class="hero reveal">
+      <span class="mark" aria-hidden="true"></span>
+      <h1><span class="name">Atharv Santosh Sankpal</span><span class="sr-only">, </span><span class="role">Full-Stack Software Engineer</span></h1>
+    </header>
+
+    <main id="main-content" class="reveal reveal-2">
       <div class="hatch" aria-hidden="true"></div>
-      <div class="block about">
-        <h2>About</h2>
+
+      <!-- About -->
+      <section class="block about" id="about" aria-labelledby="about-title">
+        <h2 id="about-title">About</h2>
         <div class="bio">
           <p>Hey, I'm Atharv, a full-stack software engineer based in Pune. I build and lead automation SaaS
             products at scale, mostly with React, Node.js, Express.js and PostgreSQL.</p>
@@ -46,18 +66,16 @@
           <a href="mailto:01atharvsankpal@gmail.com">email</a>
         </div>
         <div>
-          <a class="btn" href="Atharv_Sankpal.pdf" download>Download Resume</a>
+          <a class="btn" href="Atharv_Sankpal.pdf" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><polyline points="7 10 12 15 17 10"/><line x1="5" y1="20" x2="19" y2="20"/></svg>Download Resume</a>
         </div>
-      </div>
-    </header>
+      </section>
 
-    <main id="main-content" class="stack reveal reveal-2">
       <div class="hatch" aria-hidden="true"></div>
 
       <!-- Experience -->
       <section class="block" id="experience" aria-labelledby="experience-title">
         <h2 id="experience-title">Experience</h2>
-        <ul class="rows">
+        <ul class="rows timeline">
           <li>
             <details class="entry">
               <summary class="row">
@@ -76,7 +94,7 @@
                   <li>Implement streaming, async tasks, cron jobs, and a snapshot comparator for past entity versions</li>
                   <li>Iteratively redesigning database schemas and apply best practices for OLAP query performance</li>
                 </ul>
-                <p class="tech">Next.js · PostgreSQL · Express.js · PgBoss · Streams · Queues · Async Tasks · Google Cloud</p>
+                <ul class="tech"><li>Next.js</li><li>PostgreSQL</li><li>Express.js</li><li>PgBoss</li><li>Streams</li><li>Queues</li><li>Async Tasks</li><li>Google Cloud</li></ul>
               </div>
             </details>
           </li>
@@ -97,7 +115,7 @@
                   <li>Led end-to-end product delivery</li>
                   <li>Mentored interns, reviewed implementations, and guided requirement execution</li>
                 </ul>
-                <p class="tech">Express.js · MongoDB · Next.js · Node.js · VPS · React Native</p>
+                <ul class="tech"><li>Express.js</li><li>MongoDB</li><li>Next.js</li><li>Node.js</li><li>VPS</li><li>React Native</li></ul>
               </div>
             </details>
           </li>
@@ -117,7 +135,7 @@
                   <li>Integrated AI agents and blockchain components</li>
                   <li>Improved system efficiency using scalable architecture decisions</li>
                 </ul>
-                <p class="tech">AI Agents · Blockchain · Next.js · Flask · Ethereum · Solidity</p>
+                <ul class="tech"><li>AI Agents</li><li>Blockchain</li><li>Next.js</li><li>Flask</li><li>Ethereum</li><li>Solidity</li></ul>
               </div>
             </details>
           </li>
@@ -136,7 +154,7 @@
                   <li>Designed and documented application architecture for automation tools</li>
                   <li>Collaborated on client-driven feature development and delivery</li>
                 </ul>
-                <p class="tech">React.js · Express.js · Tailwind CSS · Bootstrap</p>
+                <ul class="tech"><li>React.js</li><li>Express.js</li><li>Tailwind CSS</li><li>Bootstrap</li></ul>
               </div>
             </details>
           </li>
@@ -175,7 +193,7 @@
               </summary>
               <div class="entry-body">
                 <p>Platform for competitive exams with real-time analytics and proctoring.</p>
-                <p class="tech">Next.js · Express.js · PostgreSQL · Prisma · Flask · OpenCV</p>
+                <ul class="tech"><li>Next.js</li><li>Express.js</li><li>PostgreSQL</li><li>Prisma</li><li>Flask</li><li>OpenCV</li></ul>
               </div>
             </details>
           </li>
@@ -190,7 +208,7 @@
               </summary>
               <div class="entry-body">
                 <p>Internal automation platform improving operational efficiency.</p>
-                <p class="tech">Express.js · Flask · AWS · MongoDB · Google Maps</p>
+                <ul class="tech"><li>Express.js</li><li>Flask</li><li>AWS</li><li>MongoDB</li><li>Google Maps</li></ul>
               </div>
             </details>
           </li>
@@ -207,7 +225,7 @@
                 <p>AI-powered SaaS for government bodies and farmers. Features a CNN classification model for disease
                   detection with 99.82% accuracy.</p>
                 <p>Implemented robust access control management for various user roles like admins and farmers.</p>
-                <p class="tech">Python · TensorFlow/Keras · CNN · React.js · Node.js · Express.js · MongoDB · RBAC</p>
+                <ul class="tech"><li>Python</li><li>TensorFlow/Keras</li><li>CNN</li><li>React.js</li><li>Node.js</li><li>Express.js</li><li>MongoDB</li><li>RBAC</li></ul>
               </div>
             </details>
           </li>
@@ -223,7 +241,7 @@
               <div class="entry-body">
                 <p>Multi-service AI SaaS featuring different multimedia model consumption provided by Cloudinary and a
                   credit system for SaaS usage.</p>
-                <p class="tech">Next.js · TypeScript · MongoDB · Zod · Stripe · Cloudinary</p>
+                <ul class="tech"><li>Next.js</li><li>TypeScript</li><li>MongoDB</li><li>Zod</li><li>Stripe</li><li>Cloudinary</li></ul>
               </div>
             </details>
           </li>
@@ -255,7 +273,7 @@
                   <li>Entity-based access control, database-backed sessions with one active device per student, and
                     structured logging with pino</li>
                 </ul>
-                <p class="tech">Next.js · TypeScript · MongoDB · Better Auth · Cloudflare R2 · pino</p>
+                <ul class="tech"><li>Next.js</li><li>TypeScript</li><li>MongoDB</li><li>Better Auth</li><li>Cloudflare R2</li><li>pino</li></ul>
               </div>
             </details>
           </li>
@@ -274,7 +292,7 @@
                   <li>Implemented dynamic reviews and a related-products system, driven from Postgres</li>
                   <li>Deployed on Cloudflare</li>
                 </ul>
-                <p class="tech">Next.js · PostgreSQL · NextAuth.js · Cloudflare</p>
+                <ul class="tech"><li>Next.js</li><li>PostgreSQL</li><li>NextAuth.js</li><li>Cloudflare</li></ul>
               </div>
             </details>
           </li>
@@ -295,7 +313,7 @@
                   <li>Built a fully customizable admin panel allowing real-time updates to nav, content, footer, and
                     products</li>
                 </ul>
-                <p class="tech">Next.js · Server Actions · MongoDB · ShadcnUI · Razorpay · Cloudinary</p>
+                <ul class="tech"><li>Next.js</li><li>Server Actions</li><li>MongoDB</li><li>ShadcnUI</li><li>Razorpay</li><li>Cloudinary</li></ul>
               </div>
             </details>
           </li>
@@ -313,7 +331,7 @@
                   <li>Converted Figma design into a pixel-perfect website with full responsiveness</li>
                   <li>Added custom animations and micro-animations to various sections</li>
                 </ul>
-                <p class="tech">React · Tailwind CSS · Framer Motion</p>
+                <ul class="tech"><li>React</li><li>Tailwind CSS</li><li>Framer Motion</li></ul>
               </div>
             </details>
           </li>
@@ -331,7 +349,7 @@
                   <li>Converted Figma design into a pixel-perfect, responsive website</li>
                   <li>Integrated PHP for secure form handling</li>
                 </ul>
-                <p class="tech">React · Tailwind CSS · PHP</p>
+                <ul class="tech"><li>React</li><li>Tailwind CSS</li><li>PHP</li></ul>
               </div>
             </details>
           </li>
@@ -349,7 +367,7 @@
                   <li>Developed a professional portfolio for a digital marketing agency</li>
                   <li>Integrated Spline for 3D interactive objects and MagicUI for effects</li>
                 </ul>
-                <p class="tech">Next.js · Spline 3D · Tailwind CSS · MagicUI</p>
+                <ul class="tech"><li>Next.js</li><li>Spline 3D</li><li>Tailwind CSS</li><li>MagicUI</li></ul>
               </div>
             </details>
           </li>
@@ -367,7 +385,7 @@
                   <li>Sleek and minimal portfolio for a reputed business group</li>
                   <li>Focused on simplicity and performance</li>
                 </ul>
-                <p class="tech">11ty · Bootstrap · HTML</p>
+                <ul class="tech"><li>11ty</li><li>Bootstrap</li><li>HTML</li></ul>
               </div>
             </details>
           </li>
@@ -385,7 +403,7 @@
                   <li>Online product showcase designed to drive offline sales</li>
                   <li>Includes admin panel for full customization and WhatsApp redirection</li>
                 </ul>
-                <p class="tech">Next.js · Admin Panel · WhatsApp API</p>
+                <ul class="tech"><li>Next.js</li><li>Admin Panel</li><li>WhatsApp API</li></ul>
               </div>
             </details>
           </li>
@@ -403,7 +421,7 @@
                   <li>Event management website with dynamic content</li>
                   <li>Includes admin panel for full customization and WhatsApp redirection</li>
                 </ul>
-                <p class="tech">Next.js · MongoDB · Framer Motion · Tailwind CSS</p>
+                <ul class="tech"><li>Next.js</li><li>MongoDB</li><li>Framer Motion</li><li>Tailwind CSS</li></ul>
               </div>
             </details>
           </li>
@@ -417,17 +435,17 @@
         <h2 id="skills-title">Skills</h2>
         <dl class="skills">
           <dt>Languages</dt>
-          <dd>JavaScript, TypeScript, Java, Python, C/C++, PHP</dd>
+          <dd><ul class="chips"><li>JavaScript</li><li>TypeScript</li><li>Java</li><li>Python</li><li>C/C++</li><li>PHP</li></ul></dd>
           <dt>Frontend</dt>
-          <dd>React.js, Next.js, React Native, Tailwind CSS, Bootstrap</dd>
+          <dd><ul class="chips"><li>React.js</li><li>Next.js</li><li>React Native</li><li>Tailwind CSS</li><li>Bootstrap</li></ul></dd>
           <dt>Backend</dt>
-          <dd>Node.js, Express.js, Flask, Laravel</dd>
+          <dd><ul class="chips"><li>Node.js</li><li>Express.js</li><li>Flask</li><li>Laravel</li></ul></dd>
           <dt>Databases</dt>
-          <dd>PostgreSQL, MongoDB</dd>
+          <dd><ul class="chips"><li>PostgreSQL</li><li>MongoDB</li></ul></dd>
           <dt>Tools</dt>
-          <dd>Prisma, Zod, AWS, Docker, Git, Stripe, Cloudinary</dd>
+          <dd><ul class="chips"><li>Prisma</li><li>Zod</li><li>AWS</li><li>Docker</li><li>Git</li><li>Stripe</li><li>Cloudinary</li></ul></dd>
           <dt>Concepts</dt>
-          <dd>UX, REST APIs, Microservices, System Design, Performance Optimization</dd>
+          <dd><ul class="chips"><li>UX</li><li>REST APIs</li><li>Microservices</li><li>System Design</li><li>Performance Optimization</li></ul></dd>
         </dl>
       </section>
 
@@ -436,7 +454,7 @@
       <!-- Achievements -->
       <section class="block" id="achievements" aria-labelledby="achievements-title">
         <h2 id="achievements-title">Achievements</h2>
-        <ul class="rows">
+        <ul class="cells">
           <li class="row">
             <div class="row-main"><span class="row-title plain">Founding Engineer &amp; Team Lead</span><h3 class="row-sub">Display Promotion</h3></div>
             <p class="row-side">Leadership</p>
@@ -486,6 +504,38 @@
   </div>
 
   <script>
+    /* Section bar: marks the section under the bar and keeps that link in view on narrow screens. */
+    (function () {
+      var bar = document.querySelector('.topbar ul');
+      var links = Array.prototype.slice.call(bar.querySelectorAll('a[href^="#"]'));
+      var targets = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); });
+      var active = null, queued = false;
+
+      function update() {
+        queued = false;
+        var line = bar.offsetHeight + 72, idx = 0;
+        targets.forEach(function (t, i) { if (t.getBoundingClientRect().top <= line) idx = i; });
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) idx = targets.length - 1;
+
+        var a = links[idx];
+        if (a === active) return;
+        if (active) active.removeAttribute('aria-current');
+        a.setAttribute('aria-current', 'location');
+        active = a;
+
+        var left = a.offsetLeft, right = left + a.offsetWidth;
+        if (left < bar.scrollLeft || right > bar.scrollLeft + bar.clientWidth) {
+          bar.scrollTo({ left: left - 16, behavior: 'smooth' });
+        }
+      }
+
+      window.addEventListener('scroll', function () {
+        if (!queued) { queued = true; requestAnimationFrame(update); }
+      }, { passive: true });
+      window.addEventListener('resize', update);
+      update();
+    })();
+
     /* Writing preview: hovering or focusing a post link shows its date, read time and summary. */
     (function () {
       var links = document.querySelectorAll('.post-link[data-preview-body]');
