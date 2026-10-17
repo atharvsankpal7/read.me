@@ -302,7 +302,8 @@ button { font: inherit; color: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  /* only the page intro respects reduced motion; figure animations carry meaning, so they always run */
+  .page { animation: none; }
 }
 @media print {
   .progress, .to-top, .lab-wrap, .pager, .back { display: none !important; }
