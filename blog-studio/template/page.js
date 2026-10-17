@@ -135,7 +135,8 @@
     /* canvas text was laid out for a proportional face; mono overflows the diagram boxes */
     font: { sans: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', mono: '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace' },
     get theme() { return currentTheme(); },
-    reducedMotion: !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches),
+    /* figure animations explain the post, so they ignore prefers-reduced-motion */
+    reducedMotion: false,
     /* read one CSS custom property, e.g. Kit.css("--accent") */
     css: function (name) { return cs().getPropertyValue(name.indexOf("--") === 0 ? name : "--" + name).trim(); },
     /* read many at once: Kit.colors(["accent", "ok"]) -> { accent: "#8b5cf6", ok: "..." } */
