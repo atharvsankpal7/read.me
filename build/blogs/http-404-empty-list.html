@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Should an Empty List Be a 404? | Atharv Sankpal</title>
+<meta name="description" content="While reading a legacy codebase, I found an interesting pattern for handling an empty list for a requested query on filters. Everything boils down to the first principles.">
+<meta name="author" content="Atharv Sankpal">
+<meta property="og:type" content="article"><meta property="og:title" content="Should an Empty List Be a 404? | Atharv Sankpal"><meta property="og:description" content="While reading a legacy codebase, I found an interesting pattern for handling an empty list for a requested query on filters. Everything boils down to the first principles."><meta property="article:published_time" content="2026-04-26">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#f8f7f4">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20fill%3D%22%230000cd%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%225%22%20fill%3D%22%23f8f7f4%22%2F%3E%3C%2Fsvg%3E">
+<script>(function(){var r=document.documentElement;if(!r.hasAttribute('data-force-theme'))r.setAttribute('data-theme','light')})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   Blog page shell. Inlined into every exported post and the blog index.
+   Tokens match the portfolio (build/styles.css) so posts feel like the same site:
+   one framed 57rem column (same as the portfolio's --page), hatched dividers, JetBrains Mono, blue links.
+   Figures span the full column, edge to edge with the frame lines.
+   ========================================================================== */
+:root {
+  color-scheme: light;
+  --bg: #f8f7f4;
+  --bg-2: #f1f0ec;
+  --fg: #080808;
+  --fg-soft: #27272a;
+  --muted: #71717a;
+  --faint: #a1a1aa;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --card: #fcfbf9;
+  --primary: #18181b;
+  --secondary: #f4f4f5;
+  --accent: #0000cd;
+  --accent-2: #00009a;
+  --accent-ink: #0000cd;
+  --accent-soft: rgba(0, 0, 205, 0.06);
+  --accent-line: rgba(0, 0, 205, 0.25);
+  --code-bg: #f4f4f5;
+  --ok: #15803d; --ok-soft: rgba(21, 128, 61, 0.08);
+  --warn: #b45309; --warn-soft: rgba(180, 83, 9, 0.08);
+  --bad: #dc2626; --bad-soft: rgba(220, 38, 38, 0.07);
+  --info: #2563eb; --info-soft: rgba(37, 99, 235, 0.07);
+  --shadow-sm: none;
+  --shadow-md: 0 4px 6px -1px #0000000f, 0 12px 28px -8px #00000024;
+  --shadow-lg: none;
+  --ease: cubic-bezier(0, 0, 0.2, 1);
+  --hatch: repeating-linear-gradient(-45deg, var(--border) 0 1px, transparent 1px 10px);
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* The site is set in mono throughout; --sans exists for the simulation kit. */
+  --sans: var(--mono);
+  --system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  --pad: 40px;
+  --page: 57rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 16px/1.5 var(--mono);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+::selection { background: #000; color: var(--bg); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+img, svg, video, canvas { max-width: 100%; }
+button { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.skip-link { position: absolute; left: 8px; top: -40px; z-index: 60; padding: 4px 8px; background: var(--bg); font-size: 14px; color: var(--fg); }
+.skip-link:focus { top: 8px; }
+
+/* ---------- frame ---------- */
+.page {
+  max-width: var(--page); min-height: 100vh; margin: 0 auto; padding: 80px 0 0;
+  display: flex; flex-direction: column; gap: 40px;
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  /* backwards, not both: a finished animation must not leave a transform behind, or .page would
+     become the containing block for position: fixed (the side toc) */
+  animation: reveal .7s var(--ease) backwards;
+}
+@keyframes reveal { from { opacity: 0; filter: blur(10px); transform: translateY(20px); } }
+.hatch { height: 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background-image: var(--hatch); }
+.post { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.back { padding: 0 var(--pad); }
+.back a {
+  display: inline-flex; align-items: center; gap: 4px; width: fit-content;
+  color: var(--muted); font-size: 14px; text-decoration: underline; text-underline-offset: 2px;
+}
+.back a:hover { color: var(--fg); }
+.back svg { width: 12px; height: 12px; }
+
+/* reading progress + back to top */
+.progress { position: fixed; top: 0; left: 0; z-index: 50; height: 4px; width: 0; background: var(--primary); }
+.to-top {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50;
+  width: 40px; height: 40px; border: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--primary); color: #fff;
+  opacity: 0; transform: translateY(40px); pointer-events: none;
+  transition: opacity .3s ease-in-out, transform .3s ease-in-out;
+}
+.to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+.to-top svg { width: 22px; height: 22px; }
+
+/* ---------- post header ---------- */
+.post-head { display: flex; flex-direction: column; gap: 16px; padding: 56px var(--pad); }
+.post-head h1 {
+  margin: 0; color: var(--accent); font-size: 36px; line-height: 1.11; font-weight: 600; letter-spacing: -0.025em; text-wrap: balance;
+}
+.post-head .meta { margin: 0; color: var(--muted); font-size: 14px; }
+.post-head .lede { margin: 0; color: var(--fg-soft); font-size: 14px; line-height: 1.7; max-width: 62ch; }
+.post-head .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.tag {
+  font-size: 11px; line-height: 20px; font-weight: 500; padding: 0 8px; border-radius: 999px;
+  color: var(--accent); background: var(--accent-soft);
+}
+.tag.live { display: inline-flex; align-items: center; gap: 6px; }
+.tag.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+
+/* ---------- table of contents ---------- */
+.toc { padding: var(--pad); border-bottom: 1px solid var(--border); }
+.toc h2 { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 700; letter-spacing: -0.025em; color: var(--fg); }
+.toc ol { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.toc a { display: block; padding-left: 16px; color: var(--muted); text-decoration: none; transition: color .15s ease; }
+.toc a::before { content: "•\00a0\00a0"; }
+.toc a.sub { padding-left: 32px; }
+.toc a.sub::before { content: "◦\00a0\00a0"; }
+.toc a:hover, .toc a.active { color: var(--fg); }
+
+/* wide screens: the toc moves into the empty gutter right of the column and follows the reader.
+   It needs ~230px of gutter, so it only happens from 1380px up; below that it stays under the title. */
+@media (min-width: 1380px) {
+  .toc {
+    position: fixed; z-index: 10; top: 96px;
+    left: calc(50% + var(--page) / 2 + 32px);
+    width: min(260px, (100vw - var(--page)) / 2 - 56px);
+    max-height: calc(100vh - 160px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+    padding: 0; border: 0;
+    transition: opacity .25s var(--ease), visibility .25s;
+  }
+  .toc h2 { font-size: 14px; line-height: 1.4; }
+  .toc ol { margin-top: 14px; gap: 0; border-left: 1px solid var(--border); }
+  .toc a { position: relative; padding: 5px 0 5px 14px; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; hyphens: auto; }
+  .toc a::before, .toc a.sub::before { content: none; }
+  .toc a.sub { padding-left: 26px; font-size: 12.5px; }
+  .toc a.active { color: var(--accent); }
+  .toc a.active::after { content: ""; position: absolute; left: -1px; top: 4px; bottom: 4px; width: 2px; background: var(--accent); }
+  /* the full simulation breaks out of the column, so the toc steps aside while it is on screen */
+  .toc.away { opacity: 0; visibility: hidden; }
+}
+
+/* ---------- prose ---------- */
+.article { padding: var(--pad); min-width: 0; }
+.prose { display: flex; flex-direction: column; gap: 24px; min-width: 0; text-align: justify; }
+.prose + .prose, .lab-wrap + .prose { margin-top: 24px; }
+.prose > * { margin: 0; }
+.prose p { line-height: 28px; text-wrap: pretty; }
+.prose strong { font-weight: 600; }
+.prose a { color: var(--accent); font-weight: 500; text-decoration: underline; text-underline-offset: 4px; }
+.prose a:hover { opacity: .8; }
+.prose h2, .prose h3, .prose h4 { position: relative; color: var(--fg); font-weight: 600; letter-spacing: -0.025em; text-align: left; text-wrap: balance; padding: 12px 0; }
+.prose h2 { font-size: 30px; line-height: 1.2; margin-top: 24px; }
+.prose h3 { font-size: 24px; line-height: 1.33; }
+.prose h4 { font-size: 20px; line-height: 1.4; }
+.anchor {
+  position: absolute; left: -1.1em; top: 50%; transform: translateY(-50%);
+  color: var(--muted); text-decoration: none !important; opacity: 0; font-weight: 400; transition: opacity .15s ease;
+}
+.prose :is(h2, h3, h4):hover .anchor, .anchor:focus-visible { opacity: 1; }
+.anchor:hover { color: var(--fg); }
+.prose ul, .prose ol { padding-left: 24px; color: var(--muted); }
+.prose ul { list-style: disc; }
+.prose li { line-height: 36px; }
+.prose li strong { color: var(--muted); }
+.prose li > p { margin: 0; }
+.prose hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+.prose blockquote { margin: 0; padding-left: 24px; border-left: 2px solid var(--border); color: var(--muted); font-style: italic; }
+.prose img { border: 1px solid var(--border); }
+.prose :not(pre) > code { font: 400 14px var(--mono); padding: 2px 4px; background: var(--code-bg); }
+.prose table { width: 100%; border-collapse: collapse; font-size: 14px; display: block; overflow-x: auto; text-align: left; }
+.prose th, .prose td { border: 1px solid var(--border); padding: 8px 16px; vertical-align: top; }
+.prose th { font-weight: 600; }
+
+/* code blocks */
+.code { position: relative; border: 1px solid var(--border); background: var(--code-bg); text-align: left; }
+.code-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 6px 8px 6px 16px; border-bottom: 1px solid var(--border);
+  font-size: 12px; color: var(--muted); text-transform: lowercase;
+}
+.copy {
+  border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+  font-size: 12px; padding: 4px 10px; cursor: pointer; transition: color .15s ease, border-color .15s ease;
+}
+.copy:hover { color: var(--fg); border-color: var(--primary); }
+.copy.done { color: var(--ok); }
+.code pre { margin: 0; padding: 16px; overflow-x: auto; font: 400 14px/1.7 var(--mono); tab-size: 2; }
+.code pre code { font: inherit; }
+
+/* callouts: > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION] / [!TRY] */
+.prose .callout {
+  --c: var(--info); --c-soft: var(--info-soft);
+  border-left: 4px solid var(--c); background: var(--c-soft); text-align: left;
+  padding: 16px; display: grid; grid-template-columns: 20px 1fr; gap: 4px 12px;
+}
+.prose .callout-icon { grid-row: span 2; color: var(--c); padding-top: 2px; }
+.prose .callout-icon svg { width: 18px; height: 18px; display: block; }
+.prose .callout-title { font-weight: 600; color: var(--c); font-size: 14px; }
+.prose .callout-body > * + * { margin-top: 8px; }
+.prose .callout-body p { font-size: 15px; line-height: 26px; margin: 0; }
+.prose .callout.tip, .prose .callout.try { --c: var(--ok); --c-soft: var(--ok-soft); }
+.prose .callout.important { --c: var(--accent); --c-soft: var(--accent-soft); }
+.prose .callout.warning { --c: var(--warn); --c-soft: var(--warn-soft); }
+.prose .callout.caution { --c: var(--bad); --c-soft: var(--bad-soft); }
+
+/* ---------- simulation lab (breaks out of the column, it needs the room) ---------- */
+.lab-wrap {
+  position: relative;
+  width: min(1440px, 100vw - 32px);
+  left: 50%; transform: translateX(-50%);
+  margin: 40px 0 16px;
+}
+.lab { background: var(--bg); border: 1px solid var(--border-strong); overflow: hidden; }
+.lab-head {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 16px 14px 20px; border-bottom: 1px solid var(--border);
+}
+.lab-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.lab-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.lab-title { font-size: 16px; font-weight: 600; letter-spacing: -0.025em; color: var(--fg); margin: 4px 0 0; line-height: 1.3; }
+.lab-hint { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 2px 0 0; }
+.lab-head .grow { flex: 1; min-width: 220px; }
+.lab-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 36px; height: 36px; display: inline-grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--primary); background: transparent; color: var(--primary); transition: background-color .15s ease;
+}
+.icon-btn:hover { background: var(--secondary); }
+.icon-btn svg { width: 16px; height: 16px; }
+.lab-body { padding: 16px; background: var(--bg-2); }
+.lab:fullscreen { border: 0; overflow: auto; background: var(--bg-2); }
+.lab:fullscreen .lab-body { min-height: calc(100vh - 70px); }
+.lab:-webkit-full-screen { width: 100%; height: 100%; overflow: auto; }
+.lab .fs-exit { display: none; }
+.lab:fullscreen .fs-exit, .lab.fake-fs .fs-exit { display: block; }
+.lab:fullscreen .fs-enter, .lab.fake-fs .fs-enter { display: none; }
+.lab.fake-fs { position: fixed; inset: 0; z-index: 100; border: 0; overflow: auto; background: var(--bg-2); }
+.lab-error {
+  margin: 0; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
+  background: var(--bad-soft); color: var(--bad); font: 13px/1.55 var(--mono); white-space: pre-wrap;
+}
+
+/* ---------- previous / next ---------- */
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 32px 16px 80px; border-top: 1px solid var(--border); }
+.pager a { flex: 1; min-width: 0; color: var(--fg); text-decoration: none; }
+.pager a.next { text-align: right; }
+.pager .dir { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+.pager a.next .dir { justify-content: flex-end; }
+.pager a:hover .dir { color: var(--fg); }
+.pager .dir svg { width: 16px; height: 16px; }
+.pager .title { margin: 4px 0 0; font-size: 18px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- blog index ---------- */
+.index-list { list-style: none; margin: 0; padding: 0 var(--pad); display: flex; flex-direction: column; gap: 20px; }
+.index-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.post-link {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  color: var(--accent); font-weight: 500;
+  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 4px;
+  transition: text-decoration-color .2s var(--ease), opacity .2s var(--ease);
+}
+.post-link:hover { text-decoration-color: var(--accent); opacity: .9; }
+.post-link .arrow { display: inline-flex; flex: none; transition: transform .2s var(--ease); }
+.post-link:hover .arrow { transform: translate(2px, -2px); }
+.post-link svg { width: 18px; height: 18px; }
+.index-list .date { margin: 0; opacity: .8; white-space: nowrap; }
+.index-end { height: 80px; }
+
+/* writing preview popover (index page) */
+.popover {
+  position: fixed; z-index: 50; width: min(22rem, 100vw - 2rem); padding: 16px 18px 18px;
+  background: var(--bg); border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); border-radius: 10px;
+  box-shadow: var(--shadow-md); font: 15px/1.55 var(--system);
+  pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .15s var(--ease), transform .15s var(--ease);
+}
+.popover.show { opacity: 1; transform: none; }
+.popover h3 { margin: 0 0 8px; color: var(--accent); font-size: 17px; font-weight: 600; line-height: 1.35; letter-spacing: -0.02em; }
+.popover .meta { margin: 0 0 12px; font-size: 12px; color: color-mix(in srgb, var(--fg) 55%, transparent); }
+.popover .body { margin: 0; font-size: 14px; line-height: 1.6; color: color-mix(in srgb, var(--fg) 82%, transparent); }
+
+@media (max-width: 639px) {
+  :root { --pad: 16px; }
+  .page { padding-top: 40px; }
+  .post-head { padding: 40px var(--pad); }
+  .post-head h1 { font-size: 24px; line-height: 1.33; }
+  .prose { text-align: left; text-wrap: pretty; }
+  .prose h2 { font-size: 20px; }
+  .prose h3 { font-size: 18px; }
+  .prose h4 { font-size: 16px; }
+  .toc a, .toc h2 { font-size: 14px; }
+  .toc a { padding-left: 8px; }
+  .toc a.sub { padding-left: 16px; }
+  .lab-body { padding: 10px; }
+  .lab-head { padding: 12px 12px 12px 14px; }
+  .anchor { display: none; }
+  .index-list li { flex-direction: column; }
+  .index-list .date { font-size: 14px; }
+  .popover { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  /* only the page intro respects reduced motion; figure animations carry meaning, so they always run */
+  .page { animation: none; }
+}
+@media print {
+  .progress, .to-top, .lab-wrap, .pager, .back { display: none !important; }
+  .page { border: 0; }
+}
+
+/* Syntax colours for highlight.js output, driven by theme tokens. */
+:root {
+  --hl-kw: #7c3aed; --hl-str: #15803d; --hl-num: #b45309; --hl-fn: #2563eb;
+  --hl-com: #9ca3af; --hl-type: #0e7490; --hl-attr: #be185d; --hl-meta: #6b7280;
+}
+:root[data-theme="dark"] {
+  --hl-kw: #c4b5fd; --hl-str: #86efac; --hl-num: #fcd34d; --hl-fn: #93c5fd;
+  --hl-com: #6b7280; --hl-type: #67e8f9; --hl-attr: #f9a8d4; --hl-meta: #9ca3af;
+}
+.hljs { color: var(--fg); }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-literal, .hljs-doctag { color: var(--hl-kw); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-template-tag, .hljs-template-variable { color: var(--hl-str); }
+.hljs-number, .hljs-symbol, .hljs-bullet { color: var(--hl-num); }
+.hljs-title, .hljs-title.function_, .hljs-section { color: var(--hl-fn); }
+.hljs-comment, .hljs-quote { color: var(--hl-com); font-style: italic; }
+.hljs-type, .hljs-class .hljs-title, .hljs-title.class_ { color: var(--hl-type); }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-property, .hljs-params { color: var(--hl-attr); }
+.hljs-meta, .hljs-selector-class, .hljs-selector-id { color: var(--hl-meta); }
+.hljs-deletion { color: var(--bad); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* ==========================================================================
+   Figures: small animated panels placed through the article with `::figure <id> <caption>`.
+   They use the portfolio's own language: cream card, zinc frame lines, hatched dividers,
+   square corners, JetBrains Mono, blue (#0000cd) as the only accent, outlined buttons.
+   The component colours below are only for telling parts of a diagram apart (Kafka vs
+   Postgres vs consumers). They were checked for lightness band, colour-blind separation
+   and contrast against --f-bg.
+   figures.js reads every colour from these variables, so this file is the one place to change them.
+   ========================================================================== */
+.fig {
+  /* site theme */
+  --f-bg: var(--card, #fcfbf9);
+  --f-bg-2: var(--bg, #f8f7f4);
+  --f-line: var(--border, #e4e4e7);
+  --f-line-2: var(--border-strong, #d4d4d8);
+  --f-ink: var(--fg, #080808);
+  --f-soft: var(--fg-soft, #27272a);
+  --f-muted: var(--muted, #71717a);
+  --f-faint: var(--faint, #a1a1aa);
+  --f-accent: var(--accent, #0000cd);
+  --f-primary: var(--primary, #18181b);
+  --f-hover: var(--secondary, #f4f4f5);
+  /* status, always shown with a glyph or a word next to it (site tokens) */
+  --f-ok: var(--ok, #15803d);
+  --f-bad: var(--bad, #dc2626);
+  --f-warn: var(--warn, #b45309);
+  /* descriptive colours for diagram parts, same roles as the simulation */
+  --f-prod: #0d9488;
+  --f-kafka: #5b4fe0;
+  --f-cons: #a16207;
+  --f-dest: #c026a3;
+  --f-pg: #1d6fe0;
+  --f-retry: #c2410c;
+  --f-cp: #71717a;
+  position: relative;
+  text-align: left;
+}
+/* hex values for figures.js (it mixes in alpha, so it needs plain hex, not var() chains) */
+.fig {
+  --fx-bg: #fcfbf9; --fx-bg-2: #f8f7f4; --fx-line: #e4e4e7; --fx-line-2: #d4d4d8;
+  --fx-ink: #080808; --fx-soft: #27272a; --fx-muted: #71717a; --fx-faint: #a1a1aa; --fx-accent: #0000cd;
+  --fx-ok: #15803d; --fx-bad: #dc2626; --fx-warn: #b45309;
+  --fx-prod: #0d9488; --fx-kafka: #5b4fe0; --fx-cons: #a16207; --fx-dest: #c026a3; --fx-pg: #1d6fe0; --fx-retry: #c2410c; --fx-cp: #71717a;
+}
+/* full column width: the panel's sides sit on the page's frame lines */
+.prose > .fig { margin: 16px calc(-1 * var(--pad)); }
+
+.fig-panel {
+  background: var(--f-bg);
+  color: var(--f-soft);
+  border-top: 1px solid var(--f-line);
+  border-bottom: 1px solid var(--f-line);
+  overflow: hidden;
+  font: 400 13px/1.5 var(--mono);
+  font-variant-numeric: tabular-nums;
+  overflow-anchor: none;
+}
+.fig-fallback { margin: 0; padding: 48px 24px; color: var(--f-muted); text-align: center; background-image: var(--hatch); }
+.fig-error { margin: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--f-bad) 30%, transparent); color: var(--f-bad); background: var(--bad-soft, #dc262612); white-space: pre-wrap; font: 12px/1.5 var(--mono); }
+
+/* header row: tag + label on the left, live status on the right */
+.fig-head {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px;
+  padding: 16px 24px 2px;
+}
+.fig-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+.fig-pill {
+  color: var(--f-accent); background: var(--accent-soft, #0000cd0f); border-radius: 999px;
+  padding: 0 8px; font-size: 11px; line-height: 20px; font-weight: 500; white-space: nowrap;
+}
+.fig-label { color: var(--f-muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.fig-status { color: var(--f-muted); font-size: 12.5px; transition: color .3s ease; }
+
+/* big readout + controls */
+.fig-bar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 24px;
+  padding: 8px 24px 16px;
+}
+.fig-big { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.fig-big b { color: var(--f-ink); font-size: 30px; line-height: 1.1; font-weight: 600; letter-spacing: -0.025em; transition: color .3s ease; white-space: nowrap; }
+.fig-big span { color: var(--f-muted); font-size: 13px; }
+.fig-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* buttons follow the portfolio .btn: outlined in zinc-900, zinc-100 on hover */
+.fig-btn {
+  cursor: pointer; border: 1px solid var(--f-primary); background: transparent; color: var(--f-primary);
+  padding: 6px 12px; font: 500 12.5px/1.2 var(--mono); white-space: nowrap;
+  transition: background-color .15s var(--ease, ease), color .15s ease, border-color .15s ease;
+}
+.fig-btn:hover { background: var(--f-hover); }
+.fig-btn.primary { background: var(--f-primary); color: var(--f-bg); }
+.fig-btn.primary:hover { background: #3f3f46; border-color: #3f3f46; }
+.fig-btn:disabled { opacity: .35; cursor: not-allowed; background: transparent; }
+.fig-btn:focus-visible, .fig-seg button:focus-visible, .fig .fx-steps button:focus-visible { outline: 2px solid var(--f-accent); outline-offset: 2px; }
+.fig-seg { display: inline-flex; border: 1px solid var(--f-primary); }
+.fig-seg button {
+  cursor: pointer; border: 0; background: transparent; color: var(--f-muted); padding: 6px 11px;
+  font: 500 12.5px/1.2 var(--mono); white-space: nowrap; transition: background-color .15s ease, color .15s ease;
+}
+.fig-seg button + button { border-left: 1px solid var(--f-primary); }
+.fig-seg button:hover { color: var(--f-ink); background: var(--f-hover); }
+.fig-seg button.on { background: var(--accent-soft, #0000cd0f); color: var(--f-accent); box-shadow: inset 0 -2px 0 var(--f-accent); }
+
+/* stage: SVG scenes scale with the panel
+   and scroll sideways on phones instead of shrinking text */
+.fig-stage {
+  position: relative; padding: 18px 24px 18px; overflow-x: auto; overscroll-behavior-x: contain;
+  background: var(--f-bg-2);
+  scrollbar-width: thin; scrollbar-color: var(--f-line-2) transparent;
+}
+.fig-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.fig-svg text { font-family: var(--mono); fill: var(--f-soft); }
+.fig-foot:empty { display: none; }
+.fig-foot {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+  padding: 12px 24px 14px; border-top: 1px solid var(--f-line); color: var(--f-muted); font-size: 12px;
+}
+.fig-key { display: inline-flex; align-items: center; gap: 7px; }
+.fig-key i { width: 10px; height: 10px; display: inline-block; }
+.fig-note { color: var(--f-faint); }
+/* hatched strip between the controls and the stage, same as the page dividers */
+.fig-panel .fig-bar { border-bottom: 1px solid var(--f-line); position: relative; margin-bottom: 12px; }
+.fig-panel .fig-bar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 12px;
+  border-bottom: 1px solid var(--f-line); background-image: var(--hatch);
+}
+
+/* caption sits back inside the text column */
+.fig figcaption {
+  margin: 12px var(--pad) 0; color: var(--muted); font-size: 13px; line-height: 1.6; text-wrap: pretty;
+}
+.fig figcaption code { font-size: 12px; }
+.fig .fig-num { color: var(--fg); font-weight: 600; text-decoration: none; margin-right: 6px; }
+.fig .fig-num:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 639px) {
+  .prose > .fig { margin: 8px calc(-1 * var(--pad)); }
+  .fig figcaption { margin: 10px var(--pad) 0; }
+  .fig-head { padding: 14px 16px 2px; }
+  .fig-bar { padding: 8px 16px 12px; }
+  .fig-big b { font-size: 24px; }
+  .fig-stage { padding: 14px 16px 14px; }
+  .fig-stage.fig-wide::before { content: "swipe to see the whole figure →"; position: sticky; left: 0; display: block; margin-bottom: 6px; color: var(--f-faint); font-size: 11px; }
+  .fig-foot { padding: 10px 16px 14px; }
+  .fig-narr { padding: 10px 16px 12px; }
+}
+@media print {
+  .fig-actions { display: none; }
+}
+
+/* ---------- reusable bits for figures.js ---------- */
+/* moving dashes on an active wire */
+.fig .fx-flow { stroke-dasharray: 5 6; animation: fx-dash .7s linear infinite; }
+@keyframes fx-dash { to { stroke-dashoffset: -11; } }
+/* a label that rises and fades out */
+.fig .fx-pop { animation: fx-pop 1.6s cubic-bezier(.2, .8, .2, 1) both; transform-box: fill-box; paint-order: stroke; stroke: var(--f-bg-2); stroke-width: 4px; stroke-linejoin: round; }
+@keyframes fx-pop {
+  0% { opacity: 0; transform: translateY(5px); }
+  12% { opacity: 1; transform: none; }
+  78% { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 0; transform: translateY(-7px); }
+}
+/* narration line + step markers in the footer */
+.fig .fx-say { flex: 1 1 320px; color: var(--f-soft); font-size: 12.5px; line-height: 1.65; min-height: 3.3em; }
+.fig .fx-say > b:first-child { color: var(--f-ink); font-weight: 600; margin-right: 4px; }
+.fig .fx-steps { display: inline-flex; gap: 6px; }
+.fig .fx-steps button { width: 22px; height: 6px; padding: 0; border: 1px solid var(--f-line-2); background: transparent; cursor: pointer; transition: background-color .25s ease, width .25s ease, border-color .25s ease; }
+.fig .fx-steps button.done { background: var(--f-line-2); }
+.fig .fx-steps button.on { width: 34px; background: var(--f-accent); border-color: var(--f-accent); }
+.fig .fx-steps button:hover { border-color: var(--f-primary); }
+/* f.steps(): dots + narration between the stage and the foot; the play / pause button keeps its width */
+.fig-narr { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 18px; padding: 12px 24px 14px; border-top: 1px solid var(--f-line); }
+.fig-narr .fx-steps { margin-top: 7px; }
+.fig .fx-player { display: inline-flex; gap: 8px; }
+.fig-btn.fx-toggle { min-width: 11ch; }
+/* hover tooltip, like the portfolio's writing preview popover */
+.fig .fx-tip {
+  position: absolute; z-index: 2; pointer-events: none; min-width: 150px;
+  padding: 8px 11px; border: 1px solid color-mix(in srgb, var(--f-ink) 12%, transparent); border-radius: 10px; background: var(--f-bg-2);
+  color: var(--f-soft); font-size: 11.5px; line-height: 1.45; box-shadow: 0 4px 6px -1px #0000000f, 0 12px 28px -8px #00000024;
+}
+.fig .fx-tip b { color: var(--f-accent); font-size: 13px; }
+.fig .fx-tip span { color: var(--f-muted); }
+/* range slider in the actions row */
+.fig .fx-range { display: inline-flex; align-items: center; gap: 10px; color: var(--f-muted); font-size: 12px; }
+.fig .fx-range input { width: 150px; accent-color: var(--f-accent); }
+.fig .fx-range-v { min-width: 11ch; color: var(--f-soft); }
+/* text inside the panel never inherits the article's prose rhythm */
+.fig-panel p { margin: 0; line-height: 1.6; text-align: left; }
+/* SVG text that sits on top of busy fills */
+.fig .fx-halo { paint-order: stroke; stroke: var(--f-bg-2); stroke-width: 3.5px; stroke-linejoin: round; }
+
+/* ---------- text selection ----------
+   The page's ::selection (black background) only recolours HTML text; SVG labels keep their dark fill and
+   turned into black blocks. Diagram labels and controls aren't meant to be copied, so they don't select;
+   readable text (narration, tables, captions) selects with a light blue tint instead. */
+.fig-svg, .fig-svg *, .fig-head, .fig-bar, .fig-btn, .fig-seg, .fig .fx-steps, .fig-key, .fig .fx-tip {
+  -webkit-user-select: none; user-select: none;
+}
+.fig-panel ::selection, .fig figcaption ::selection, .fig figcaption::selection { background: rgba(0, 0, 205, 0.16); color: var(--f-ink); }
+
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<div class="progress" aria-hidden="true"></div>
+<article class="page">
+<div class="back"><a href="../"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17V7h10"/><path d="M17 17 7 7"/></svg> Home</a></div>
+<div class="post">
+<div class="hatch" aria-hidden="true"></div>
+<header class="post-head">
+  <h1>Should an Empty List Be a 404?</h1>
+  <p class="meta"><time datetime="2026-04-26">Apr 26, 2026</time> · 2 min read · By Atharv Sankpal</p>
+  <p class="lede">While reading a legacy codebase, I found an interesting pattern for handling an empty list for a requested query on filters. Everything boils down to the first principles.</p>
+  <ul class="tags"><li class="tag live">Interactive</li><li class="tag">HTTP</li><li class="tag">APIs</li><li class="tag">Backend</li></ul>
+</header>
+<div class="hatch" aria-hidden="true"></div>
+<nav class="toc" aria-label="Table of contents"><h2>Table of Contents</h2><ol><li><a href="#what-each-status-code-means">What each status code means</a></li><li><a href="#so-what-is-going-on">So what is going on?</a></li><li><a href="#what-should-have-been-the-approach">What should have been the approach?</a></li></ol></nav>
+<div class="article" id="main-content">
+<div class="prose">
+<p>While reading a legacy codebase, I found an interesting pattern for handling an empty list for a requested query on filters.</p>
+<p>If the frontend requests a list of items with specific filters and the database has no items, then the backend was sending a <code>404 Not Found</code> error. On the intuition sense this seems correct, but semantically how correct is it?</p>
+<h2 id="what-each-status-code-means"><a class="anchor" href="#what-each-status-code-means" aria-label="Link to this section">#</a>What each status code means</h2>
+<p>It all boils down to the <a href="https://www.rfc-editor.org/rfc/rfc9110#name-status-codes" target="_blank" rel="noopener">HTTP standards</a> for sending the response. Every response code depicts a state in the system:</p>
+<ul>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9110#name-successful-2xx" target="_blank" rel="noopener"><strong>2xx</strong></a> means the request-response lifecycle was correctly completed.</li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9110#name-redirection-3xx" target="_blank" rel="noopener"><strong>3xx</strong></a> means it was completed correctly but with some changes that the client didn&#39;t know but the server did, like redirection.</li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9110#name-client-error-4xx" target="_blank" rel="noopener"><strong>4xx</strong></a> means the client side did some mistake while making the request, let it be trying to access the wrong entity or sending an invalid request body for the server to process it correctly.</li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9110#name-server-error-5xx" target="_blank" rel="noopener"><strong>5xx</strong></a> is for something going wrong at the server side, like <a href="https://www.rfc-editor.org/rfc/rfc9110#name-503-service-unavailable" target="_blank" rel="noopener"><code>503</code></a> meaning that the server doesn&#39;t have enough resources to process the request.</li>
+</ul>
+<h2 id="so-what-is-going-on"><a class="anchor" href="#so-what-is-going-on" aria-label="Link to this section">#</a>So what is going on?</h2>
+<p>So in the above case, what is going on? The frontend did send the correct request headers, was authenticated and was accessing the correct set of entities. So there is no need to send 4xx errors, including <a href="https://www.rfc-editor.org/rfc/rfc9110#name-404-not-found" target="_blank" rel="noopener"><code>404</code></a>, since the client is not asking for a specific entity with a unique identifier like a UUID for the backend to say that entity is not found. The client is asking for a list of entities that have certain properties.</p>
+<p>Still, the backend was sending the 404 status code, and the frontend was handling that error as a valid response by doing some glue code on the frontend, rendering the empty list message on hitting that status code for that given component.</p>
+<figure class="fig" id="figure-emptylist" data-figure="emptylist">
+<div class="fig-panel"><p class="fig-fallback">Figure 1 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-emptylist">Figure 1</a> The same filtered request, answered two ways. Switch between the legacy 404 and a 200 with an empty list, then see what happens when a real 404 comes back.</figcaption>
+</figure><aside class="callout important" role="note"><span class="callout-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v4M12 14h.01"/></svg></span><div class="callout-title">Important</div><div class="callout-body"><p>The handling of the API errors should happen in the API layer, not in the component layer, as the error handling should include showing a generalized error message to ensure security.</p>
+</div></aside>
+<h2 id="what-should-have-been-the-approach"><a class="anchor" href="#what-should-have-been-the-approach" aria-label="Link to this section">#</a>What should have been the approach?</h2>
+<p>Even if the backend finds that we have no entities matching the filters that the frontend wants, it is still a valid request. So the backend should have sent a <a href="https://www.rfc-editor.org/rfc/rfc9110#name-200-ok" target="_blank" rel="noopener"><code>200</code></a> status code (on subsequent requests it might be automatically converted to <a href="https://www.rfc-editor.org/rfc/rfc9110#name-304-not-modified" target="_blank" rel="noopener"><code>304</code></a>).</p>
+<div class="code"><div class="code-head"><span>http</span><button class="copy" type="button">Copy</button></div><pre><code class="hljs language-http">GET /items?color=purple&amp;size=xs HTTP/1.1
+
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+[]</code></pre></div>
+<p>Everything boils down to the first principles.</p>
+</div>
+</div>
+</div>
+<nav class="pager" aria-label="More writing"><a class="prev" href="./concurrency-vs-parallelism.html"><div class="dir"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Previous</span></div><p class="title">Concurrency and Parallelism</p></a><a class="next" href="./checksums.html"><div class="dir"><span>Next</span><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></div><p class="title">Checksums: The Digital Fingerprint of Data</p></a></nav>
+</article>
+<button class="to-top" type="button" aria-label="Back to top"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+<script>
+/* Blog page runtime: reading progress, back to top, toc, previews, code copy, lab chrome, and the Kit API for simulations. */
+(function () {
+  "use strict";
+  var doc = document, root = doc.documentElement;
+
+  /* ---------- theme ----------
+     The site is light only. The studio preview can force a theme via data-theme, and Kit.onTheme
+     listeners still fire when that attribute changes. */
+  var themeListeners = [];
+  function currentTheme() { return root.getAttribute("data-theme") === "dark" ? "dark" : "light"; }
+  new MutationObserver(function () {
+    var t = currentTheme();
+    themeListeners.slice().forEach(function (fn) { try { fn(t); } catch (e) { console.error(e); } });
+  }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+
+  /* ---------- reading progress + back to top ---------- */
+  var prog = doc.querySelector(".progress"), toTop = doc.querySelector(".to-top"), ticking = false;
+  function onScroll() {
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(function () {
+      ticking = false;
+      var y = window.scrollY, max = Math.max(1, doc.documentElement.scrollHeight - innerHeight);
+      if (prog) prog.style.width = (Math.min(1, y / max) * 100).toFixed(2) + "%";
+      if (toTop) toTop.classList.toggle("show", y > 400);
+    });
+  }
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+  if (toTop) toTop.addEventListener("click", function () { scrollTo({ top: 0, behavior: "smooth" }); });
+
+  /* ---------- writing previews (blog index) ---------- */
+  var previewLinks = doc.querySelectorAll(".post-link[data-preview-body]");
+  if (previewLinks.length && window.matchMedia && matchMedia("(hover: hover)").matches) {
+    var pop = doc.createElement("div"), current = null;
+    pop.className = "popover"; pop.setAttribute("aria-hidden", "true");
+    pop.innerHTML = '<h3></h3><p class="meta"></p><p class="body"></p>';
+    doc.body.appendChild(pop);
+    var show = function (a) {
+      current = a;
+      pop.querySelector("h3").textContent = a.textContent.trim();
+      pop.querySelector(".meta").textContent = [a.dataset.previewDate, a.dataset.previewMinutes && a.dataset.previewMinutes + " min read"].filter(Boolean).join(" · ");
+      pop.querySelector(".body").textContent = a.dataset.previewBody;
+      var r = a.getBoundingClientRect(), gap = 8, h = pop.offsetHeight;
+      var top = r.bottom + gap + h <= innerHeight ? r.bottom + gap : r.top - gap - h;
+      pop.style.top = Math.max(8, top) + "px";
+      pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 16)) + "px";
+      pop.classList.add("show");
+    };
+    var hide = function () { current = null; pop.classList.remove("show"); };
+    previewLinks.forEach(function (a) {
+      a.addEventListener("mouseenter", function () { show(a); });
+      a.addEventListener("focus", function () { show(a); });
+      a.addEventListener("mouseleave", hide);
+      a.addEventListener("blur", hide);
+    });
+    addEventListener("scroll", function () {
+      if (!current) return;
+      if (current.matches(":hover") || current === doc.activeElement) show(current); else hide();
+    }, { passive: true });
+  }
+
+  /* ---------- toc highlight ---------- */
+  var tocLinks = [].slice.call(doc.querySelectorAll(".toc a"));
+  if (tocLinks.length && "IntersectionObserver" in window) {
+    var byId = {}, heads = [];
+    tocLinks.forEach(function (a) {
+      var id = decodeURIComponent(a.getAttribute("href").slice(1)), h = doc.getElementById(id);
+      if (h) { byId[id] = a; heads.push(h); }
+    });
+    var visible = {};
+    var setActive = function () {
+      var best = null;
+      for (var i = 0; i < heads.length; i++) {
+        if (heads[i].getBoundingClientRect().top < innerHeight * 0.35) best = heads[i]; else break;
+      }
+      tocLinks.forEach(function (a) { a.classList.remove("active"); });
+      var on = best && byId[best.id];
+      if (on) {
+        on.classList.add("active");
+        /* in the side toc, keep the active entry inside the toc's own scroll area (never scrolls the page) */
+        var box = on.closest(".toc");
+        if (box && box.scrollHeight > box.clientHeight) {
+          var top = on.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop, pad = 40;
+          if (top < box.scrollTop + pad) box.scrollTop = Math.max(0, top - pad);
+          else if (top + on.offsetHeight > box.scrollTop + box.clientHeight - pad) box.scrollTop = top + on.offsetHeight - box.clientHeight + pad;
+        }
+      }
+    };
+    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { visible[e.target.id] = e.isIntersecting; }); setActive(); }, { rootMargin: "0px 0px -60% 0px" });
+    heads.forEach(function (h) { io.observe(h); });
+    addEventListener("scroll", function () { requestAnimationFrame(setActive); }, { passive: true });
+    setActive();
+  }
+
+  /* toc in the side gutter (wide screens) hides while the wide simulation lab is on screen */
+  var tocEl = doc.querySelector(".toc"), labWrap = doc.querySelector(".lab-wrap");
+  if (tocEl && labWrap && "IntersectionObserver" in window) {
+    new IntersectionObserver(function (es) { tocEl.classList.toggle("away", es[0].isIntersecting); }).observe(labWrap);
+  }
+
+  /* ---------- code copy ---------- */
+  doc.querySelectorAll(".code .copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var code = btn.closest(".code").querySelector("pre code");
+      var txt = code ? code.textContent : "";
+      var done = function () { btn.textContent = "Copied"; btn.classList.add("done"); setTimeout(function () { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1400); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () {});
+      else { var ta = doc.createElement("textarea"); ta.value = txt; doc.body.appendChild(ta); ta.select(); try { doc.execCommand("copy"); done(); } catch (e) {} ta.remove(); }
+    });
+  });
+
+  /* ---------- lab: fullscreen ---------- */
+  doc.querySelectorAll(".lab").forEach(function (lab) {
+    lab.querySelectorAll("[data-fullscreen]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var fsEl = doc.fullscreenElement || doc.webkitFullscreenElement;
+        if (fsEl) { (doc.exitFullscreen || doc.webkitExitFullscreen).call(doc); return; }
+        if (lab.classList.contains("fake-fs")) { lab.classList.remove("fake-fs"); doc.body.style.overflow = ""; return; }
+        var req = lab.requestFullscreen || lab.webkitRequestFullscreen;
+        if (req) { var p = req.call(lab); if (p && p.catch) p.catch(fakeFs); }
+        else fakeFs();
+        function fakeFs() { lab.classList.add("fake-fs"); doc.body.style.overflow = "hidden"; }
+      });
+    });
+  });
+
+  /* ---------- Kit: the API simulations are written against ---------- */
+  var labEl = doc.querySelector(".lab"), labVisible = true;
+  if (labEl && "IntersectionObserver" in window) {
+    new IntersectionObserver(function (es) { labVisible = es[0].isIntersecting; }, { rootMargin: "300px 0px" }).observe(labEl);
+  }
+  var cs = function () { return getComputedStyle(root); };
+  var Kit = {
+    version: 1,
+    root: doc.querySelector(".lab-body"),
+    /* canvas text was laid out for a proportional face; mono overflows the diagram boxes */
+    font: { sans: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', mono: '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace' },
+    get theme() { return currentTheme(); },
+    /* figure animations explain the post, so they ignore prefers-reduced-motion */
+    reducedMotion: false,
+    /* read one CSS custom property, e.g. Kit.css("--accent") */
+    css: function (name) { return cs().getPropertyValue(name.indexOf("--") === 0 ? name : "--" + name).trim(); },
+    /* read many at once: Kit.colors(["accent", "ok"]) -> { accent: "#8b5cf6", ok: "..." } */
+    colors: function (names) { var s = cs(), o = {}; names.forEach(function (n) { o[n] = s.getPropertyValue("--" + n.replace(/^--/, "")).trim(); }); return o; },
+    /* run fn(theme) whenever light/dark changes; returns an unsubscribe function */
+    onTheme: function (fn) { themeListeners.push(fn); return function () { themeListeners = themeListeners.filter(function (f) { return f !== fn; }); }; },
+    /* animation loop, fn(dtSeconds, nowMs). Skips frames while the lab is off screen or the tab is hidden. */
+    loop: function (fn, opts) {
+      opts = opts || {}; var maxDt = opts.maxDt || 0.1, last = performance.now(), stopped = false;
+      function frame(now) {
+        if (stopped) return;
+        var dt = Math.min(maxDt, (now - last) / 1000); last = now;
+        if ((labVisible || opts.always) && !doc.hidden) {
+          try { fn(dt, now); } catch (e) { stopped = true; Kit.fail(e); return; }
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+      return { stop: function () { stopped = true; } };
+    },
+    /* size a canvas to its container for a logical width x height scene; returns { ctx, scale, dpr } with the
+       transform already applied so you draw in logical units */
+    fitCanvas: function (canvas, w, h, opts) {
+      opts = opts || {};
+      var box = opts.container || canvas.parentElement, avail = Math.max(0, box.clientWidth - 2);
+      var scale = Math.min(opts.max || 1.25, Math.max(avail / w, opts.min || 0.5)), dpr = window.devicePixelRatio || 1;
+      var cw = Math.round(w * scale), ch = Math.round(h * scale);
+      if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
+        canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+        canvas.style.width = cw + "px"; canvas.style.height = ch + "px";
+      }
+      var ctx = canvas.getContext("2d"); ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+      return { ctx: ctx, scale: scale, dpr: dpr };
+    },
+    /* resolves once web fonts are loaded so canvas text measures correctly */
+    ready: doc.fonts && doc.fonts.ready ? doc.fonts.ready.then(function () {}) : Promise.resolve(),
+    esc: function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); },
+    /* show a readable error inside the lab instead of a blank box */
+    fail: function (err) {
+      console.error(err);
+      if (!Kit.root) return;
+      var pre = doc.createElement("pre"); pre.className = "lab-error";
+      pre.textContent = "The simulation hit an error and stopped.\n\n" + (err && (err.stack || err.message) || err);
+      Kit.root.prepend(pre);
+    }
+  };
+  window.Kit = Kit;
+
+  /* ---------- figures: small animated scenes placed with `::figure <id>` lines ----------
+     figures.js registers each one with Kit.figure(id, function (f) { ... }). Every figure gets its own
+     clock that only runs while the figure is on screen, so waits and tweens pause when scrolled away. */
+  var SVGNS = "http://www.w3.org/2000/svg", CANCEL = {}, figs = [];
+  function build(ns, tag, attrs, kids) {
+    var el = ns ? doc.createElementNS(ns, tag) : doc.createElement(tag);
+    for (var k in attrs || {}) {
+      var v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === "text") el.textContent = v;
+      else if (k === "html") el.innerHTML = v;
+      else if (k.slice(0, 2) === "on" && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    (kids || []).forEach(function (c) { if (c != null) el.appendChild(typeof c === "string" ? doc.createTextNode(c) : c); });
+    return el;
+  }
+  /* Kit.h("div", { class: "x", text: "hi", onclick: fn }, [children]) and the SVG twin Kit.s("rect", {...}) */
+  Kit.h = function (tag, attrs, kids) { return build(null, tag, attrs, kids); };
+  Kit.s = function (tag, attrs, kids) { return build(SVGNS, tag, attrs, kids); };
+  Kit.ease = {
+    linear: function (t) { return t; },
+    out: function (t) { return 1 - Math.pow(1 - t, 3); },
+    inOut: function (t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; },
+  };
+  Kit.lerp = function (a, b, t) { return a + (b - a) * t; };
+
+  function makeFigure(el) {
+    var panel = el.querySelector(".fig-panel"), jobs = [], frames = [], token = null, enter = [], entered = false;
+    var f = {
+      el: el, panel: panel, id: el.getAttribute("data-figure"),
+      time: 0, visible: false, speed: 1, reducedMotion: Kit.reducedMotion,
+      h: Kit.h, s: Kit.s,
+      /* header + big readout + actions + stage, laid out like every other figure */
+      chrome: function (o) {
+        o = o || {};
+        var head = Kit.h("div", { class: "fig-head" }, [
+          Kit.h("span", { class: "fig-tags" }, [
+            o.tag ? Kit.h("span", { class: "fig-pill", text: "✻ " + o.tag }) : null,
+            o.label ? Kit.h("span", { class: "fig-label", text: o.label }) : null,
+          ]),
+          f.statusEl = Kit.h("span", { class: "fig-status", "aria-live": "polite" }),
+        ]);
+        var bar = Kit.h("div", { class: "fig-bar" }, [
+          Kit.h("div", { class: "fig-big" }, [f.bigEl = Kit.h("b"), f.unitEl = Kit.h("span")]),
+          f.actions = Kit.h("div", { class: "fig-actions" }),
+        ]);
+        f.stage = Kit.h("div", { class: "fig-stage" + (o.stageClass ? " " + o.stageClass : "") });
+        f.foot = Kit.h("div", { class: "fig-foot" });
+        panel.append(head, bar, f.stage, f.foot);
+        return f;
+      },
+      status: function (text, color) { f.statusEl.textContent = text; f.statusEl.style.color = color || ""; },
+      big: function (value, unit, color) {
+        f.bigEl.textContent = value; f.bigEl.style.color = color || "";
+        if (unit != null) f.unitEl.textContent = unit;
+      },
+      button: function (label, onClick, o) {
+        o = o || {};
+        var b = Kit.h("button", { type: "button", class: "fig-btn" + (o.primary ? " primary" : ""), text: label, onclick: onClick });
+        (o.parent || f.actions).appendChild(b); return b;
+      },
+      /* segmented control: f.segmented([["all", "acks=all"], ["1", "acks=1"]], "all", fn) */
+      segmented: function (options, value, onChange, o) {
+        o = o || {};
+        var wrap = Kit.h("div", { class: "fig-seg", role: "group", "aria-label": o.label || "" }), btns = [];
+        var set = function (v, fire) {
+          value = v;
+          btns.forEach(function (b) { var on = b.dataset.v === String(v); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
+          if (fire) onChange(v);
+        };
+        options.forEach(function (opt) {
+          var b = Kit.h("button", { type: "button", "data-v": opt[0], text: opt[1], onclick: function () { if (String(value) !== opt[0]) set(opt[0], true); } });
+          btns.push(b); wrap.appendChild(b);
+        });
+        set(value, false);
+        (o.parent || f.actions).appendChild(wrap);
+        return { get value() { return value; }, set: set };
+      },
+      svg: function (w, h, o) {
+        o = o || {};
+        var svg = Kit.s("svg", { viewBox: "0 0 " + w + " " + h, class: "fig-svg", role: "img", "aria-label": o.label || "" });
+        if (o.minWidth) { svg.style.minWidth = o.minWidth + "px"; (o.parent || f.stage).classList.add("fig-wide"); }
+        (o.parent || f.stage).appendChild(svg); return svg;
+      },
+      /* per-frame callback while visible: fn(dtSeconds, figureTimeMs) */
+      loop: function (fn) { frames.push(fn); },
+      /* first time the figure is mostly on screen; replays start from here */
+      onEnter: function (fn) { if (entered) fn(); else enter.push(fn); },
+      /* run an async sequence; starting a new one cancels the old. s.wait(ms), s.tween(ms, fn, ease).
+         With s.fast set, waits resolve at once and tweens jump to their end (used to skip to a step). */
+      run: function (fn) {
+        if (token) token.dead = true;
+        var tk = token = { dead: false };
+        jobs = jobs.filter(function (j) { return !j.tk.dead; });
+        var add = function (j) {
+          return new Promise(function (res, rej) {
+            if (tk.dead) return rej(CANCEL);
+            j.tk = tk; j.start = f.time; j.res = res; jobs.push(j);
+          });
+        };
+        var now = function () { return tk.dead ? Promise.reject(CANCEL) : Promise.resolve(); };
+        var s = {
+          fast: false,
+          get alive() { return !tk.dead; },
+          wait: function (ms) { return s.fast ? now() : add({ dur: ms }); },
+          tween: function (ms, cb, ease) {
+            if (s.fast) { if (!tk.dead) cb(1); return now(); }
+            if (f.reducedMotion) { cb(1); return s.wait(Math.min(ms, 120)); }
+            return add({ dur: ms, cb: cb, ease: ease || Kit.ease.inOut });
+          },
+        };
+        return Promise.resolve().then(function () { return fn(s); }).catch(function (e) { if (e !== CANCEL) f.fail(e); });
+      },
+      stop: function () { if (token) token.dead = true; jobs = []; },
+      /* step-by-step playback: prev / play-pause / next buttons, step dots and a narration line.
+         list: [{ title, text, play: async s => {} }], text can be a function. Going to step i runs o.reset(),
+         replays steps 0..i-1 with s.fast (no waiting), then plays step i, so every play() has to reach the
+         same end state at any speed. o.enter(i) runs as step i starts. Autoplay starts when the figure
+         comes into view, moves on o.gap ms after each step and stops after the last one. */
+      steps: function (list, o) {
+        o = o || {};
+        var last = list.length - 1, index = 0, auto = false, busy = false, started = false;
+        var player = Kit.h("div", { class: "fx-player", role: "group", "aria-label": "Steps" });
+        f.actions.appendChild(player);
+        var prev = f.button("← prev", function () { go(index - 1); }, { parent: player });
+        var toggle = f.button("", function () { if (auto) pause(); else play(); }, { primary: true, parent: player });
+        var next = f.button("next →", function () { go(index + 1); }, { parent: player });
+        toggle.classList.add("fx-toggle");
+        prev.setAttribute("aria-label", "Previous step"); next.setAttribute("aria-label", "Next step");
+        var dots = Kit.h("span", { class: "fx-steps" }), say = Kit.h("span", { class: "fx-say", "aria-live": "polite" });
+        list.forEach(function (st, i) {
+          dots.appendChild(Kit.h("button", { type: "button", "aria-label": "Step " + (i + 1) + ": " + st.title, onclick: function () { go(i); } }));
+        });
+        panel.insertBefore(Kit.h("div", { class: "fig-narr" }, [dots, say]), f.foot || null);
+
+        function sync() {
+          var replay = !auto && started && index === last && !busy;
+          prev.disabled = index === 0; next.disabled = index === last;
+          toggle.textContent = auto ? "❚❚ pause" : replay ? "↻ replay" : "▶ play";
+          toggle.setAttribute("aria-label", auto ? "Pause autoplay" : replay ? "Replay from the first step" : "Play the steps");
+          [].forEach.call(dots.children, function (b, k) {
+            b.classList.toggle("on", k === index); b.classList.toggle("done", k < index);
+            if (k === index) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+          });
+        }
+        function label(i) {
+          index = i;
+          var st = list[i], text = typeof st.text === "function" ? st.text() : st.text;
+          say.replaceChildren(Kit.h("b", { text: st.title }), " " + (text || ""));
+          sync();
+        }
+        function from(s, k) {
+          label(k); busy = true; sync();
+          if (o.enter) o.enter(k);
+          return s.wait(o.lead == null ? 250 : o.lead).then(function () { return list[k].play(s); }).then(function () {
+            busy = false;
+            if (k === last) auto = false;
+            sync();
+            if (!auto) return;
+            return s.wait(o.gap == null ? 1500 : o.gap).then(function () { if (auto) return from(s, k + 1); });
+          });
+        }
+        /* go to step i and play it; keep = leave autoplay as it is (otherwise a manual jump pauses it) */
+        function go(i, keep) {
+          i = Math.max(0, Math.min(last, i));
+          if (!keep) auto = false;
+          started = true; busy = true; label(i);
+          return f.run(function (s) {
+            if (o.reset) o.reset();
+            s.fast = true;
+            var p = Promise.resolve();
+            list.slice(0, i).forEach(function (st) { p = p.then(function () { return st.play(s); }); });
+            return p.then(function () { s.fast = false; return from(s, i); });
+          });
+        }
+        function play() {
+          auto = true;
+          if (busy) { sync(); return; }
+          go(!started || index === last ? 0 : index + 1, true);
+        }
+        function pause() { auto = false; sync(); }
+        /* the figure moved itself (a scrub, a slider): stop, pause, and call step i the current one */
+        function seek(i) {
+          f.stop(); auto = false; busy = false; started = true;
+          label(Math.max(0, Math.min(last, i)));
+        }
+        f.el.addEventListener("keydown", function (e) {
+          var t = e.target;
+          if (e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t === f.stage) return;
+          if (e.key === "ArrowLeft" && index > 0) { e.preventDefault(); go(index - 1); }
+          else if (e.key === "ArrowRight" && index < last) { e.preventDefault(); go(index + 1); }
+        });
+        if (o.reset) o.reset();
+        label(0);
+        if (o.enter) o.enter(0);
+        f.onEnter(function () { if (!started && o.autoplay !== false) play(); });
+        return {
+          go: go, play: play, pause: pause, seek: seek,
+          next: function () { go(index + 1); }, prev: function () { go(index - 1); },
+          /* replay the current step, e.g. after a scenario control changed */
+          redo: function () { go(index, true); },
+          get index() { return index; }, get auto() { return auto; }, get length() { return list.length; },
+        };
+      },
+      fail: function (err) {
+        console.error(err);
+        panel.prepend(Kit.h("pre", { class: "fig-error", text: "Figure \"" + f.id + "\" hit an error.\n\n" + (err && (err.stack || err.message) || err) }));
+      },
+      _tick: function (dt) {
+        f.time += dt * 1000 * f.speed;
+        var list = jobs.slice();
+        for (var i = 0; i < list.length; i++) {
+          var j = list[i];
+          if (j.tk.dead) continue;
+          var p = j.dur > 0 ? Math.min(1, (f.time - j.start) / j.dur) : 1;
+          if (j.cb) j.cb(j.ease(p));
+          if (p >= 1) { jobs.splice(jobs.indexOf(j), 1); j.res(); }
+        }
+        for (var k = 0; k < frames.length; k++) frames[k](dt, f.time);
+      },
+      _enter: function () { if (entered) return; entered = true; enter.splice(0).forEach(function (fn) { fn(); }); },
+    };
+    return f;
+  }
+
+  /* point and tangent angle at fraction t of an SVG path */
+  Kit.pointAt = function (path, t) {
+    var len = path.getTotalLength(), p = path.getPointAtLength(Math.max(0, Math.min(1, t)) * len);
+    return { x: p.x, y: p.y };
+  };
+
+  var figIO = "IntersectionObserver" in window ? new IntersectionObserver(function (es) {
+    es.forEach(function (e) {
+      var f = e.target.__fig; if (!f) return;
+      f.visible = e.isIntersecting;
+      if (e.intersectionRatio >= 0.35 || (e.isIntersecting && e.boundingClientRect.height > innerHeight)) f._enter();
+    });
+  }, { threshold: [0, 0.35, 0.6] }) : null;
+
+  var figLast = 0, figLooping = false;
+  function figFrame(now) {
+    var dt = figLast ? Math.min(0.1, (now - figLast) / 1000) : 0; figLast = now;
+    if (!doc.hidden) figs.forEach(function (f) { if (f.visible) { try { f._tick(dt); } catch (e) { f.visible = false; f.fail(e); } } });
+    requestAnimationFrame(figFrame);
+  }
+
+  Kit.figure = function (id, setup) {
+    var els = doc.querySelectorAll('figure.fig[data-figure="' + id + '"]');
+    if (!els.length) { console.warn('Kit.figure("' + id + '"): the article has no "::figure ' + id + '" line'); return; }
+    els.forEach(function (el) {
+      if (el.__fig) return;
+      el.querySelector(".fig-panel").innerHTML = "";
+      el.classList.add("mounted");
+      var f = el.__fig = makeFigure(el);
+      figs.push(f);
+      try { setup(f); } catch (e) { f.fail(e); }
+      if (figIO) figIO.observe(el); else { f.visible = true; f._enter(); }
+    });
+    if (!figLooping) { figLooping = true; requestAnimationFrame(figFrame); }
+  };
+  /* called after figures.js: flag ::figure lines that nothing registered */
+  Kit.figuresReady = function () {
+    doc.querySelectorAll("figure.fig:not(.mounted) .fig-fallback").forEach(function (p) {
+      var id = p.closest("figure").getAttribute("data-figure");
+      console.warn('No Kit.figure("' + id + '") in figures.js');
+    });
+  };
+})();
+
+</script>
+
+<script>
+/* figures: http-404-empty-list */
+try {
+(function (Kit) {
+"use strict";
+/*
+ * Figures for the HTTP empty list post. Each Kit.figure(id, setup) fills the `::figure <id>` block
+ * with the same name in post.md.
+ */
+const { h, s: sv } = Kit;
+
+/* colours come from template/figure.css (--fx-*), so the figures follow the site theme from one place.
+   bg is the stage surface, bg2 the card the boxes sit on. */
+const CSSV = getComputedStyle(document.querySelector("figure.fig") || document.documentElement);
+const v = n => CSSV.getPropertyValue("--fx-" + n).trim();
+const C = {
+  bg: v("bg-2"), bg2: v("bg"), line: v("line"), line2: v("line-2"),
+  ink: v("ink"), soft: v("soft"), muted: v("muted"), faint: v("faint"), accent: v("accent"),
+  ok: v("ok"), bad: v("bad"), warn: v("warn"),
+  /* diagram parts */
+  a: v("prod"), b: v("cons"), db: v("pg"), api: v("kafka"), ui: v("dest"), os: v("retry"), net: v("cp"),
+};
+const OKT = C.ok, BADT = C.bad, WARNT = C.warn;
+
+/* ---------- small SVG kit ---------- */
+
+/* labelled box with a coloured accent bar; state() switches idle / on / dim / bad / ok */
+function box(svg, o) {
+  const g = sv("g");
+  const rect = sv("rect", { x: o.x, y: o.y, width: o.w, height: o.h, rx: o.r ?? 0, "stroke-width": 1.2 });
+  rect.style.cssText = `fill:${C.bg2};stroke:${C.line2};transition:fill .35s ease, stroke .35s ease`;
+  const bar = sv("rect", { x: o.x, y: o.y + 9, width: 3, height: (o.barH || o.h) - 18, rx: 1.5, fill: o.color });
+  const size = o.size || 13;
+  const top = o.top ?? (o.sub != null ? o.h / 2 - 3 : o.h / 2 + 4.5);
+  const label = sv("text", { x: o.x + 14, y: o.y + top, "font-size": size, "font-weight": 600, text: o.label });
+  label.style.fill = C.ink;
+  const sub = o.sub != null ? sv("text", { x: o.x + 14, y: o.y + top + 16, "font-size": 10.5, text: o.sub }) : null;
+  if (sub) sub.style.fill = C.muted;
+  g.append(rect, bar, label);
+  if (sub) g.append(sub);
+  g.style.transition = "opacity .35s ease";
+  (o.parent || svg).appendChild(g);
+  return {
+    g, rect, label, sub, x: o.x, y: o.y, w: o.w, h: o.h, cx: o.x + o.w / 2, cy: o.y + o.h / 2, color: o.color,
+    state(st) {
+      rect.style.stroke = st === "on" ? o.color : st === "bad" ? C.bad : st === "ok" ? C.ok : C.line2;
+      rect.style.fill = st === "on" ? o.color + "1f" : st === "bad" ? C.bad + "17" : st === "ok" ? C.ok + "14" : C.bg2;
+      g.style.opacity = st === "dim" ? 0.42 : 1;
+    },
+    text(t, color) { if (sub) { sub.textContent = t; sub.style.fill = color || C.muted; } },
+  };
+}
+
+function wire(parent, d, o = {}) {
+  const p = sv("path", { d, fill: "none", "stroke-width": o.w || 1.4, "stroke-linecap": "round", "stroke-dasharray": o.dash || null });
+  p.style.cssText = `stroke:${o.color || C.line2};transition:stroke .35s ease, opacity .35s ease`;
+  parent.appendChild(p);
+  return p;
+}
+const lit = (p, color) => { p.style.stroke = color || C.line2; p.classList.toggle("fx-flow", !!color); };
+
+function txt(parent, x, y, text, o = {}) {
+  const t = sv("text", { x, y, "font-size": o.size || 11, "text-anchor": o.anchor || "start", "font-weight": o.weight || null, text });
+  t.style.fill = o.color || C.muted;
+  parent.appendChild(t);
+  return t;
+}
+
+/* a dot that travels along a path; o.reverse runs it backwards, o.to stops part way */
+async function travel(s, layer, path, color, ms = 700, o = {}) {
+  const c = sv("circle", { r: o.r || 5, cx: -99, cy: -99, fill: color, stroke: C.bg, "stroke-width": 2 });
+  layer.appendChild(c);
+  const to = o.to ?? 1;
+  try {
+    await s.tween(ms, t => {
+      const u = t * to, p = Kit.pointAt(path, o.reverse ? 1 - u : u);
+      c.setAttribute("cx", p.x); c.setAttribute("cy", p.y);
+    }, o.ease || Kit.ease.inOut);
+  } finally {
+    c.remove();
+  }
+}
+
+/* a block of data that moves from one place to another along a small arc */
+async function slide(s, layer, o, ms = 800) {
+  const r = sv("rect", { x: o.x0, y: o.y0, width: o.w, height: o.h, "stroke-width": 1.2 });
+  r.style.cssText = `fill:${o.color}33;stroke:${o.color}`;
+  const t = o.label ? txt(layer, 0, 0, o.label, { size: 10.5, anchor: "middle", color: C.ink, weight: 600 }) : null;
+  layer.appendChild(r);
+  if (t) layer.appendChild(t);
+  try {
+    await s.tween(ms, k => {
+      const x = Kit.lerp(o.x0, o.x1, k), y = Kit.lerp(o.y0, o.y1, k) - (o.arc ?? 40) * Math.sin(Math.PI * k);
+      r.setAttribute("x", x); r.setAttribute("y", y);
+      if (t) { t.setAttribute("x", x + o.w / 2); t.setAttribute("y", y + o.h / 2 + 4); }
+    });
+  } finally {
+    r.remove();
+    if (t) t.remove();
+  }
+}
+
+/* a short label that rises and fades; removed after it finishes */
+function pop(layer, x, y, text, color = C.ink, o = {}) {
+  const t = sv("text", { x, y, "font-size": o.size || 11.5, "font-weight": 600, "text-anchor": o.anchor || "middle", class: "fx-pop", text });
+  t.style.fill = color;
+  t.style.animationDuration = (o.ms || 1600) + "ms";
+  layer.appendChild(t);
+  setTimeout(() => t.remove(), (o.ms || 1600) + 50);
+  return t;
+}
+
+/* a small cell (a page, a block, a buffer slot) with a label; fill() colours it, clear() empties it */
+function cell(parent, x, y, w, ht, o = {}) {
+  const r = sv("rect", { x, y, width: w, height: ht, "stroke-width": 1 });
+  r.style.cssText = `fill:${C.bg};stroke:${C.line2};transition:fill .3s ease, stroke .3s ease`;
+  parent.appendChild(r);
+  const t = txt(parent, x + w / 2, y + (o.sub ? ht / 2 - 1 : ht / 2 + 4), o.text || "", { size: o.size || 10.5, anchor: "middle", color: C.ink, weight: 600 });
+  const sub = o.sub ? txt(parent, x + w / 2, y + ht / 2 + 12, o.sub, { size: 9.5, anchor: "middle" }) : null;
+  return {
+    r, t, sub, x, y, w, h: ht,
+    fill(color, text) {
+      r.style.fill = color ? color + "26" : C.bg;
+      r.style.stroke = color || C.line2;
+      if (text != null) t.textContent = text;
+    },
+    clear() { this.fill(null, o.text || ""); if (sub) sub.textContent = o.sub; },
+  };
+}
+
+
+/* ======================================================================
+   Figure: a filtered list with no results, 404 vs 200
+   ====================================================================== */
+Kit.figure("emptylist", f => {
+  f.chrome({ tag: "http · status codes", label: "an empty list" });
+  const svg = f.svg(880, 270, { label: "A component, the API layer, the backend and the database answering a filtered list request", minWidth: 660 });
+  const wires = sv("g"), nodes = sv("g"), fx = sv("g");
+  svg.append(wires, nodes, fx);
+
+  const W = {
+    uiApi: wire(wires, "M220,90 H290"),
+    apiBe: wire(wires, "M430,90 H520"),
+    beDb: wire(wires, "M660,90 H730"),
+  };
+  const ui = box(nodes, { x: 10, y: 20, w: 210, h: 236, top: 22, label: "component", sub: "item list", color: C.ui });
+  const api = box(nodes, { x: 290, y: 20, w: 140, h: 140, top: 22, label: "api layer", sub: "fetch + errors", color: C.api });
+  const be = box(nodes, { x: 520, y: 20, w: 140, h: 140, top: 22, label: "backend", sub: "GET /items", color: C.a });
+  const db = box(nodes, { x: 730, y: 20, w: 140, h: 140, top: 22, label: "database", sub: "items", color: C.db });
+  /* the rendered UI, and the glue code the 404 version needs */
+  const screen = sv("rect", { x: 24, y: 70, width: 182, height: 64, "stroke-width": 1 });
+  screen.style.cssText = `fill:${C.bg};stroke:${C.line2};transition:stroke .3s ease, fill .3s ease`;
+  nodes.appendChild(screen);
+  const screenT = txt(nodes, 115, 98, "", { size: 11, anchor: "middle", color: C.ink, weight: 600 });
+  const screenS = txt(nodes, 115, 116, "", { size: 10, anchor: "middle" });
+  const glue = [0, 1, 2].map(i => txt(nodes, 24, 170 + i * 18, "", { size: 10.5, color: C.bad }));
+  const status = txt(nodes, 360, 196, "", { size: 22, weight: 600, anchor: "middle" });
+  const statusS = txt(nodes, 360, 216, "", { size: 10.5, anchor: "middle" });
+
+  const mode = f.segmented([["404", "404 (legacy)"], ["200", "200 + []"]], "404", () => steps.redo(), { label: "Response" });
+  const legacy = () => mode.value === "404";
+  const setScreen = (t, sub, color) => {
+    screenT.textContent = t; screenS.textContent = sub || "";
+    screenT.style.fill = color || C.ink;
+    screen.style.stroke = color || C.line2;
+  };
+  const setGlue = on => {
+    const lines = on ? ["// glue code in the component", "if (err.status === 404)", "  showEmptyList()"] : ["", "", ""];
+    glue.forEach((t, i) => { t.textContent = lines[i]; t.style.fill = i ? C.bad : C.muted; });
+  };
+  const setStatus = (code, sub, color) => { status.textContent = code; status.style.fill = color || C.ink; statusS.textContent = sub || ""; };
+
+  /* before step 1: nothing requested */
+  function reset() {
+    fx.replaceChildren();
+    [ui, api, be, db].forEach(b => b.state("idle"));
+    setScreen("", ""); setGlue(false); setStatus("", "");
+    db.text("items");
+    f.big("GET", "/items?color=purple&size=xs");
+    f.status(legacy() ? "the legacy backend" : "the fixed backend");
+  }
+  function enter() { fx.replaceChildren(); Object.values(W).forEach(w => lit(w)); }
+  async function hop(s, w, color, back) {
+    lit(w, color);
+    await travel(s, fx, w, color, 420, { reverse: back });
+    lit(w);
+  }
+
+  const STEPS = [
+    {
+      title: "request",
+      text: "The frontend asks for a list of items with filters. The headers are correct, it is authenticated, and it accesses the correct set of entities.",
+      async play(s) {
+        ui.state("on"); setScreen("loading…", "", C.muted);
+        await hop(s, W.uiApi, C.ui);
+        api.state("on");
+        await hop(s, W.apiBe, C.api);
+        be.state("on");
+        await hop(s, W.beDb, C.a);
+        db.state("on");
+      },
+    },
+    {
+      title: "no rows",
+      text: "The database has no items that match the filters. That is still an answer to a valid request.",
+      async play(s) {
+        db.text("0 rows", C.ink);
+        pop(fx, 800, 14, "0 rows", C.ink);
+        await hop(s, W.beDb, C.db, true);
+        db.state("idle");
+      },
+    },
+    {
+      get title() { return legacy() ? "404" : "200 []"; },
+      text: () => legacy()
+        ? "The backend sends 404 Not Found. The API layer sees an error, so the component needs glue code that turns this status code into the empty list message."
+        : "The backend sends 200 OK with an empty list. The API layer passes the data on, and the component renders the empty list message from the data.",
+      async play(s) {
+        const color = legacy() ? C.bad : C.ok;
+        setStatus(legacy() ? "404" : "200", legacy() ? "Not Found" : "OK · []", color);
+        await hop(s, W.apiBe, color, true);
+        be.state("idle");
+        api.state(legacy() ? "bad" : "ok");
+        await hop(s, W.uiApi, color, true);
+        if (legacy()) { setGlue(true); await s.wait(500); }
+        setScreen("No items match", "your filters", C.ink);
+        ui.state("ok");
+        f.big(legacy() ? "404" : "200", legacy() ? "for a valid request" : "a valid request, a valid response", legacy() ? BADT : OKT);
+        await s.wait(500);
+      },
+    },
+    {
+      title: "a real 404",
+      text: () => legacy()
+        ? "Later, a real error comes back: the route was renamed, and that is also a 404. The glue code shows \"No items match\", so the real error is hidden."
+        : "A real error, like GET /items/<uuid> for a deleted item, is a 404. The API layer handles it in one place, with a generalized error message.",
+      async play(s) {
+        [ui, api].forEach(b => b.state("idle"));
+        setStatus("404", legacy() ? "route not found" : "item not found", C.bad);
+        f.big("404", legacy() ? "a real error" : "a specific entity is missing", C.bad);
+        await hop(s, W.uiApi, C.ui);
+        api.state("on");
+        await s.wait(300);
+        api.state("bad");
+        await hop(s, W.uiApi, C.bad, true);
+        if (legacy()) {
+          setScreen("No items match", "your filters", C.warn);
+          ui.state("bad");
+          f.status("the real error is hidden by the glue code", BADT);
+        } else {
+          setScreen("Something went wrong", "generalized message", C.bad);
+          ui.state("ok");
+          f.status("errors handled in the API layer", OKT);
+        }
+        await s.wait(600);
+      },
+    },
+  ];
+  const steps = f.steps(STEPS, { reset, enter });
+});
+
+})(window.Kit);
+} catch (err) { console.error(err); }
+window.Kit.figuresReady();
+</script>
+</body>
+</html>
