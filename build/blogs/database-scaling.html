@@ -1,0 +1,1864 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Optimizations Around Database | Atharv Sankpal</title>
+<meta name="description" content="Connection pooling, caches, read replicas, the write-ahead log and sharding. The problems we hit when we scale a single SQL database, and the trade-offs that come with each fix.">
+<meta name="author" content="Atharv Sankpal">
+<meta property="og:type" content="article"><meta property="og:title" content="Optimizations Around Database | Atharv Sankpal"><meta property="og:description" content="Connection pooling, caches, read replicas, the write-ahead log and sharding. The problems we hit when we scale a single SQL database, and the trade-offs that come with each fix."><meta property="article:published_time" content="2026-08-15">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#f8f7f4">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20fill%3D%22%230000cd%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%225%22%20fill%3D%22%23f8f7f4%22%2F%3E%3C%2Fsvg%3E">
+<script>(function(){var r=document.documentElement;if(!r.hasAttribute('data-force-theme'))r.setAttribute('data-theme','light')})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   Blog page shell. Inlined into every exported post and the blog index.
+   Tokens match the portfolio (build/styles.css) so posts feel like the same site:
+   one framed 57rem column (same as the portfolio's --page), hatched dividers, JetBrains Mono, blue links.
+   Figures span the full column, edge to edge with the frame lines.
+   ========================================================================== */
+:root {
+  color-scheme: light;
+  --bg: #f8f7f4;
+  --bg-2: #f1f0ec;
+  --fg: #080808;
+  --fg-soft: #27272a;
+  --muted: #71717a;
+  --faint: #a1a1aa;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --card: #fcfbf9;
+  --primary: #18181b;
+  --secondary: #f4f4f5;
+  --accent: #0000cd;
+  --accent-2: #00009a;
+  --accent-ink: #0000cd;
+  --accent-soft: rgba(0, 0, 205, 0.06);
+  --accent-line: rgba(0, 0, 205, 0.25);
+  --code-bg: #f4f4f5;
+  --ok: #15803d; --ok-soft: rgba(21, 128, 61, 0.08);
+  --warn: #b45309; --warn-soft: rgba(180, 83, 9, 0.08);
+  --bad: #dc2626; --bad-soft: rgba(220, 38, 38, 0.07);
+  --info: #2563eb; --info-soft: rgba(37, 99, 235, 0.07);
+  --shadow-sm: none;
+  --shadow-md: 0 4px 6px -1px #0000000f, 0 12px 28px -8px #00000024;
+  --shadow-lg: none;
+  --ease: cubic-bezier(0, 0, 0.2, 1);
+  --hatch: repeating-linear-gradient(-45deg, var(--border) 0 1px, transparent 1px 10px);
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* The site is set in mono throughout; --sans exists for the simulation kit. */
+  --sans: var(--mono);
+  --system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  --pad: 40px;
+  --page: 57rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 16px/1.5 var(--mono);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+::selection { background: #000; color: var(--bg); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+img, svg, video, canvas { max-width: 100%; }
+button { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.skip-link { position: absolute; left: 8px; top: -40px; z-index: 60; padding: 4px 8px; background: var(--bg); font-size: 14px; color: var(--fg); }
+.skip-link:focus { top: 8px; }
+
+/* ---------- frame ---------- */
+.page {
+  max-width: var(--page); min-height: 100vh; margin: 0 auto; padding: 80px 0 0;
+  display: flex; flex-direction: column; gap: 40px;
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  /* backwards, not both: a finished animation must not leave a transform behind, or .page would
+     become the containing block for position: fixed (the side toc) */
+  animation: reveal .7s var(--ease) backwards;
+}
+@keyframes reveal { from { opacity: 0; filter: blur(10px); transform: translateY(20px); } }
+.hatch { height: 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background-image: var(--hatch); }
+.post { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.back { padding: 0 var(--pad); }
+.back a {
+  display: inline-flex; align-items: center; gap: 4px; width: fit-content;
+  color: var(--muted); font-size: 14px; text-decoration: underline; text-underline-offset: 2px;
+}
+.back a:hover { color: var(--fg); }
+.back svg { width: 12px; height: 12px; }
+
+/* reading progress + back to top */
+.progress { position: fixed; top: 0; left: 0; z-index: 50; height: 4px; width: 0; background: var(--primary); }
+.to-top {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50;
+  width: 40px; height: 40px; border: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--primary); color: #fff;
+  opacity: 0; transform: translateY(40px); pointer-events: none;
+  transition: opacity .3s ease-in-out, transform .3s ease-in-out;
+}
+.to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+.to-top svg { width: 22px; height: 22px; }
+
+/* ---------- post header ---------- */
+.post-head { display: flex; flex-direction: column; gap: 16px; padding: 56px var(--pad); }
+.post-head h1 {
+  margin: 0; color: var(--accent); font-size: 36px; line-height: 1.11; font-weight: 600; letter-spacing: -0.025em; text-wrap: balance;
+}
+.post-head .meta { margin: 0; color: var(--muted); font-size: 14px; }
+.post-head .lede { margin: 0; color: var(--fg-soft); font-size: 14px; line-height: 1.7; max-width: 62ch; }
+.post-head .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.tag {
+  font-size: 11px; line-height: 20px; font-weight: 500; padding: 0 8px; border-radius: 999px;
+  color: var(--accent); background: var(--accent-soft);
+}
+.tag.live { display: inline-flex; align-items: center; gap: 6px; }
+.tag.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+
+/* ---------- table of contents ---------- */
+.toc { padding: var(--pad); border-bottom: 1px solid var(--border); }
+.toc h2 { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 700; letter-spacing: -0.025em; color: var(--fg); }
+.toc ol { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.toc a { display: block; padding-left: 16px; color: var(--muted); text-decoration: none; transition: color .15s ease; }
+.toc a::before { content: "•\00a0\00a0"; }
+.toc a.sub { padding-left: 32px; }
+.toc a.sub::before { content: "◦\00a0\00a0"; }
+.toc a:hover, .toc a.active { color: var(--fg); }
+
+/* wide screens: the toc moves into the empty gutter right of the column and follows the reader.
+   It needs ~230px of gutter, so it only happens from 1380px up; below that it stays under the title. */
+@media (min-width: 1380px) {
+  .toc {
+    position: fixed; z-index: 10; top: 96px;
+    left: calc(50% + var(--page) / 2 + 32px);
+    width: min(260px, (100vw - var(--page)) / 2 - 56px);
+    max-height: calc(100vh - 160px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+    padding: 0; border: 0;
+    transition: opacity .25s var(--ease), visibility .25s;
+  }
+  .toc h2 { font-size: 14px; line-height: 1.4; }
+  .toc ol { margin-top: 14px; gap: 0; border-left: 1px solid var(--border); }
+  .toc a { position: relative; padding: 5px 0 5px 14px; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; hyphens: auto; }
+  .toc a::before, .toc a.sub::before { content: none; }
+  .toc a.sub { padding-left: 26px; font-size: 12.5px; }
+  .toc a.active { color: var(--accent); }
+  .toc a.active::after { content: ""; position: absolute; left: -1px; top: 4px; bottom: 4px; width: 2px; background: var(--accent); }
+  /* the full simulation breaks out of the column, so the toc steps aside while it is on screen */
+  .toc.away { opacity: 0; visibility: hidden; }
+}
+
+/* ---------- prose ---------- */
+.article { padding: var(--pad); min-width: 0; }
+.prose { display: flex; flex-direction: column; gap: 24px; min-width: 0; text-align: justify; }
+.prose + .prose, .lab-wrap + .prose { margin-top: 24px; }
+.prose > * { margin: 0; }
+.prose p { line-height: 28px; text-wrap: pretty; }
+.prose strong { font-weight: 600; }
+.prose a { color: var(--accent); font-weight: 500; text-decoration: underline; text-underline-offset: 4px; }
+.prose a:hover { opacity: .8; }
+.prose h2, .prose h3, .prose h4 { position: relative; color: var(--fg); font-weight: 600; letter-spacing: -0.025em; text-align: left; text-wrap: balance; padding: 12px 0; }
+.prose h2 { font-size: 30px; line-height: 1.2; margin-top: 24px; }
+.prose h3 { font-size: 24px; line-height: 1.33; }
+.prose h4 { font-size: 20px; line-height: 1.4; }
+.anchor {
+  position: absolute; left: -1.1em; top: 50%; transform: translateY(-50%);
+  color: var(--muted); text-decoration: none !important; opacity: 0; font-weight: 400; transition: opacity .15s ease;
+}
+.prose :is(h2, h3, h4):hover .anchor, .anchor:focus-visible { opacity: 1; }
+.anchor:hover { color: var(--fg); }
+.prose ul, .prose ol { padding-left: 24px; color: var(--muted); }
+.prose ul { list-style: disc; }
+.prose li { line-height: 36px; }
+.prose li strong { color: var(--muted); }
+.prose li > p { margin: 0; }
+.prose hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+.prose blockquote { margin: 0; padding-left: 24px; border-left: 2px solid var(--border); color: var(--muted); font-style: italic; }
+.prose img { border: 1px solid var(--border); }
+.prose :not(pre) > code { font: 400 14px var(--mono); padding: 2px 4px; background: var(--code-bg); }
+.prose table { width: 100%; border-collapse: collapse; font-size: 14px; display: block; overflow-x: auto; text-align: left; }
+.prose th, .prose td { border: 1px solid var(--border); padding: 8px 16px; vertical-align: top; }
+.prose th { font-weight: 600; }
+
+/* code blocks */
+.code { position: relative; border: 1px solid var(--border); background: var(--code-bg); text-align: left; }
+.code-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 6px 8px 6px 16px; border-bottom: 1px solid var(--border);
+  font-size: 12px; color: var(--muted); text-transform: lowercase;
+}
+.copy {
+  border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+  font-size: 12px; padding: 4px 10px; cursor: pointer; transition: color .15s ease, border-color .15s ease;
+}
+.copy:hover { color: var(--fg); border-color: var(--primary); }
+.copy.done { color: var(--ok); }
+.code pre { margin: 0; padding: 16px; overflow-x: auto; font: 400 14px/1.7 var(--mono); tab-size: 2; }
+.code pre code { font: inherit; }
+
+/* callouts: > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION] / [!TRY] */
+.prose .callout {
+  --c: var(--info); --c-soft: var(--info-soft);
+  border-left: 4px solid var(--c); background: var(--c-soft); text-align: left;
+  padding: 16px; display: grid; grid-template-columns: 20px 1fr; gap: 4px 12px;
+}
+.prose .callout-icon { grid-row: span 2; color: var(--c); padding-top: 2px; }
+.prose .callout-icon svg { width: 18px; height: 18px; display: block; }
+.prose .callout-title { font-weight: 600; color: var(--c); font-size: 14px; }
+.prose .callout-body > * + * { margin-top: 8px; }
+.prose .callout-body p { font-size: 15px; line-height: 26px; margin: 0; }
+.prose .callout.tip, .prose .callout.try { --c: var(--ok); --c-soft: var(--ok-soft); }
+.prose .callout.important { --c: var(--accent); --c-soft: var(--accent-soft); }
+.prose .callout.warning { --c: var(--warn); --c-soft: var(--warn-soft); }
+.prose .callout.caution { --c: var(--bad); --c-soft: var(--bad-soft); }
+
+/* ---------- simulation lab (breaks out of the column, it needs the room) ---------- */
+.lab-wrap {
+  position: relative;
+  width: min(1440px, 100vw - 32px);
+  left: 50%; transform: translateX(-50%);
+  margin: 40px 0 16px;
+}
+.lab { background: var(--bg); border: 1px solid var(--border-strong); overflow: hidden; }
+.lab-head {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 16px 14px 20px; border-bottom: 1px solid var(--border);
+}
+.lab-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.lab-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.lab-title { font-size: 16px; font-weight: 600; letter-spacing: -0.025em; color: var(--fg); margin: 4px 0 0; line-height: 1.3; }
+.lab-hint { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 2px 0 0; }
+.lab-head .grow { flex: 1; min-width: 220px; }
+.lab-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 36px; height: 36px; display: inline-grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--primary); background: transparent; color: var(--primary); transition: background-color .15s ease;
+}
+.icon-btn:hover { background: var(--secondary); }
+.icon-btn svg { width: 16px; height: 16px; }
+.lab-body { padding: 16px; background: var(--bg-2); }
+.lab:fullscreen { border: 0; overflow: auto; background: var(--bg-2); }
+.lab:fullscreen .lab-body { min-height: calc(100vh - 70px); }
+.lab:-webkit-full-screen { width: 100%; height: 100%; overflow: auto; }
+.lab .fs-exit { display: none; }
+.lab:fullscreen .fs-exit, .lab.fake-fs .fs-exit { display: block; }
+.lab:fullscreen .fs-enter, .lab.fake-fs .fs-enter { display: none; }
+.lab.fake-fs { position: fixed; inset: 0; z-index: 100; border: 0; overflow: auto; background: var(--bg-2); }
+.lab-error {
+  margin: 0; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
+  background: var(--bad-soft); color: var(--bad); font: 13px/1.55 var(--mono); white-space: pre-wrap;
+}
+
+/* ---------- previous / next ---------- */
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 32px 16px 80px; border-top: 1px solid var(--border); }
+.pager a { flex: 1; min-width: 0; color: var(--fg); text-decoration: none; }
+.pager a.next { text-align: right; }
+.pager .dir { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+.pager a.next .dir { justify-content: flex-end; }
+.pager a:hover .dir { color: var(--fg); }
+.pager .dir svg { width: 16px; height: 16px; }
+.pager .title { margin: 4px 0 0; font-size: 18px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- blog index ---------- */
+.index-list { list-style: none; margin: 0; padding: 0 var(--pad); display: flex; flex-direction: column; gap: 20px; }
+.index-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.post-link {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  color: var(--accent); font-weight: 500;
+  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 4px;
+  transition: text-decoration-color .2s var(--ease), opacity .2s var(--ease);
+}
+.post-link:hover { text-decoration-color: var(--accent); opacity: .9; }
+.post-link .arrow { display: inline-flex; flex: none; transition: transform .2s var(--ease); }
+.post-link:hover .arrow { transform: translate(2px, -2px); }
+.post-link svg { width: 18px; height: 18px; }
+.index-list .date { margin: 0; opacity: .8; white-space: nowrap; }
+.index-end { height: 80px; }
+
+/* writing preview popover (index page) */
+.popover {
+  position: fixed; z-index: 50; width: min(22rem, 100vw - 2rem); padding: 16px 18px 18px;
+  background: var(--bg); border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); border-radius: 10px;
+  box-shadow: var(--shadow-md); font: 15px/1.55 var(--system);
+  pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .15s var(--ease), transform .15s var(--ease);
+}
+.popover.show { opacity: 1; transform: none; }
+.popover h3 { margin: 0 0 8px; color: var(--accent); font-size: 17px; font-weight: 600; line-height: 1.35; letter-spacing: -0.02em; }
+.popover .meta { margin: 0 0 12px; font-size: 12px; color: color-mix(in srgb, var(--fg) 55%, transparent); }
+.popover .body { margin: 0; font-size: 14px; line-height: 1.6; color: color-mix(in srgb, var(--fg) 82%, transparent); }
+
+@media (max-width: 639px) {
+  :root { --pad: 16px; }
+  .page { padding-top: 40px; }
+  .post-head { padding: 40px var(--pad); }
+  .post-head h1 { font-size: 24px; line-height: 1.33; }
+  .prose { text-align: left; text-wrap: pretty; }
+  .prose h2 { font-size: 20px; }
+  .prose h3 { font-size: 18px; }
+  .prose h4 { font-size: 16px; }
+  .toc a, .toc h2 { font-size: 14px; }
+  .toc a { padding-left: 8px; }
+  .toc a.sub { padding-left: 16px; }
+  .lab-body { padding: 10px; }
+  .lab-head { padding: 12px 12px 12px 14px; }
+  .anchor { display: none; }
+  .index-list li { flex-direction: column; }
+  .index-list .date { font-size: 14px; }
+  .popover { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  /* only the page intro respects reduced motion; figure animations carry meaning, so they always run */
+  .page { animation: none; }
+}
+@media print {
+  .progress, .to-top, .lab-wrap, .pager, .back { display: none !important; }
+  .page { border: 0; }
+}
+
+/* Syntax colours for highlight.js output, driven by theme tokens. */
+:root {
+  --hl-kw: #7c3aed; --hl-str: #15803d; --hl-num: #b45309; --hl-fn: #2563eb;
+  --hl-com: #9ca3af; --hl-type: #0e7490; --hl-attr: #be185d; --hl-meta: #6b7280;
+}
+:root[data-theme="dark"] {
+  --hl-kw: #c4b5fd; --hl-str: #86efac; --hl-num: #fcd34d; --hl-fn: #93c5fd;
+  --hl-com: #6b7280; --hl-type: #67e8f9; --hl-attr: #f9a8d4; --hl-meta: #9ca3af;
+}
+.hljs { color: var(--fg); }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-literal, .hljs-doctag { color: var(--hl-kw); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-template-tag, .hljs-template-variable { color: var(--hl-str); }
+.hljs-number, .hljs-symbol, .hljs-bullet { color: var(--hl-num); }
+.hljs-title, .hljs-title.function_, .hljs-section { color: var(--hl-fn); }
+.hljs-comment, .hljs-quote { color: var(--hl-com); font-style: italic; }
+.hljs-type, .hljs-class .hljs-title, .hljs-title.class_ { color: var(--hl-type); }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-property, .hljs-params { color: var(--hl-attr); }
+.hljs-meta, .hljs-selector-class, .hljs-selector-id { color: var(--hl-meta); }
+.hljs-deletion { color: var(--bad); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* ==========================================================================
+   Figures: small animated panels placed through the article with `::figure <id> <caption>`.
+   They use the portfolio's own language: cream card, zinc frame lines, hatched dividers,
+   square corners, JetBrains Mono, blue (#0000cd) as the only accent, outlined buttons.
+   The component colours below are only for telling parts of a diagram apart (Kafka vs
+   Postgres vs consumers). They were checked for lightness band, colour-blind separation
+   and contrast against --f-bg.
+   figures.js reads every colour from these variables, so this file is the one place to change them.
+   ========================================================================== */
+.fig {
+  /* site theme */
+  --f-bg: var(--card, #fcfbf9);
+  --f-bg-2: var(--bg, #f8f7f4);
+  --f-line: var(--border, #e4e4e7);
+  --f-line-2: var(--border-strong, #d4d4d8);
+  --f-ink: var(--fg, #080808);
+  --f-soft: var(--fg-soft, #27272a);
+  --f-muted: var(--muted, #71717a);
+  --f-faint: var(--faint, #a1a1aa);
+  --f-accent: var(--accent, #0000cd);
+  --f-primary: var(--primary, #18181b);
+  --f-hover: var(--secondary, #f4f4f5);
+  /* status, always shown with a glyph or a word next to it (site tokens) */
+  --f-ok: var(--ok, #15803d);
+  --f-bad: var(--bad, #dc2626);
+  --f-warn: var(--warn, #b45309);
+  /* descriptive colours for diagram parts, same roles as the simulation */
+  --f-prod: #0d9488;
+  --f-kafka: #5b4fe0;
+  --f-cons: #a16207;
+  --f-dest: #c026a3;
+  --f-pg: #1d6fe0;
+  --f-retry: #c2410c;
+  --f-cp: #71717a;
+  position: relative;
+  text-align: left;
+}
+/* hex values for figures.js (it mixes in alpha, so it needs plain hex, not var() chains) */
+.fig {
+  --fx-bg: #fcfbf9; --fx-bg-2: #f8f7f4; --fx-line: #e4e4e7; --fx-line-2: #d4d4d8;
+  --fx-ink: #080808; --fx-soft: #27272a; --fx-muted: #71717a; --fx-faint: #a1a1aa; --fx-accent: #0000cd;
+  --fx-ok: #15803d; --fx-bad: #dc2626; --fx-warn: #b45309;
+  --fx-prod: #0d9488; --fx-kafka: #5b4fe0; --fx-cons: #a16207; --fx-dest: #c026a3; --fx-pg: #1d6fe0; --fx-retry: #c2410c; --fx-cp: #71717a;
+}
+/* full column width: the panel's sides sit on the page's frame lines */
+.prose > .fig { margin: 16px calc(-1 * var(--pad)); }
+
+.fig-panel {
+  background: var(--f-bg);
+  color: var(--f-soft);
+  border-top: 1px solid var(--f-line);
+  border-bottom: 1px solid var(--f-line);
+  overflow: hidden;
+  font: 400 13px/1.5 var(--mono);
+  font-variant-numeric: tabular-nums;
+  overflow-anchor: none;
+}
+.fig-fallback { margin: 0; padding: 48px 24px; color: var(--f-muted); text-align: center; background-image: var(--hatch); }
+.fig-error { margin: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--f-bad) 30%, transparent); color: var(--f-bad); background: var(--bad-soft, #dc262612); white-space: pre-wrap; font: 12px/1.5 var(--mono); }
+
+/* header row: tag + label on the left, live status on the right */
+.fig-head {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px;
+  padding: 16px 24px 2px;
+}
+.fig-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+.fig-pill {
+  color: var(--f-accent); background: var(--accent-soft, #0000cd0f); border-radius: 999px;
+  padding: 0 8px; font-size: 11px; line-height: 20px; font-weight: 500; white-space: nowrap;
+}
+.fig-label { color: var(--f-muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.fig-status { color: var(--f-muted); font-size: 12.5px; transition: color .3s ease; }
+
+/* big readout + controls */
+.fig-bar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 24px;
+  padding: 8px 24px 16px;
+}
+.fig-big { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.fig-big b { color: var(--f-ink); font-size: 30px; line-height: 1.1; font-weight: 600; letter-spacing: -0.025em; transition: color .3s ease; white-space: nowrap; }
+.fig-big span { color: var(--f-muted); font-size: 13px; }
+.fig-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* buttons follow the portfolio .btn: outlined in zinc-900, zinc-100 on hover */
+.fig-btn {
+  cursor: pointer; border: 1px solid var(--f-primary); background: transparent; color: var(--f-primary);
+  padding: 6px 12px; font: 500 12.5px/1.2 var(--mono); white-space: nowrap;
+  transition: background-color .15s var(--ease, ease), color .15s ease, border-color .15s ease;
+}
+.fig-btn:hover { background: var(--f-hover); }
+.fig-btn.primary { background: var(--f-primary); color: var(--f-bg); }
+.fig-btn.primary:hover { background: #3f3f46; border-color: #3f3f46; }
+.fig-btn:disabled { opacity: .35; cursor: not-allowed; background: transparent; }
+.fig-btn:focus-visible, .fig-seg button:focus-visible, .fig .fx-steps button:focus-visible { outline: 2px solid var(--f-accent); outline-offset: 2px; }
+.fig-seg { display: inline-flex; border: 1px solid var(--f-primary); }
+.fig-seg button {
+  cursor: pointer; border: 0; background: transparent; color: var(--f-muted); padding: 6px 11px;
+  font: 500 12.5px/1.2 var(--mono); white-space: nowrap; transition: background-color .15s ease, color .15s ease;
+}
+.fig-seg button + button { border-left: 1px solid var(--f-primary); }
+.fig-seg button:hover { color: var(--f-ink); background: var(--f-hover); }
+.fig-seg button.on { background: var(--accent-soft, #0000cd0f); color: var(--f-accent); box-shadow: inset 0 -2px 0 var(--f-accent); }
+
+/* stage: SVG scenes scale with the panel
+   and scroll sideways on phones instead of shrinking text */
+.fig-stage {
+  position: relative; padding: 18px 24px 18px; overflow-x: auto; overscroll-behavior-x: contain;
+  background: var(--f-bg-2);
+  scrollbar-width: thin; scrollbar-color: var(--f-line-2) transparent;
+}
+.fig-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.fig-svg text { font-family: var(--mono); fill: var(--f-soft); }
+.fig-foot:empty { display: none; }
+.fig-foot {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+  padding: 12px 24px 14px; border-top: 1px solid var(--f-line); color: var(--f-muted); font-size: 12px;
+}
+.fig-key { display: inline-flex; align-items: center; gap: 7px; }
+.fig-key i { width: 10px; height: 10px; display: inline-block; }
+.fig-note { color: var(--f-faint); }
+/* hatched strip between the controls and the stage, same as the page dividers */
+.fig-panel .fig-bar { border-bottom: 1px solid var(--f-line); position: relative; margin-bottom: 12px; }
+.fig-panel .fig-bar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 12px;
+  border-bottom: 1px solid var(--f-line); background-image: var(--hatch);
+}
+
+/* caption sits back inside the text column */
+.fig figcaption {
+  margin: 12px var(--pad) 0; color: var(--muted); font-size: 13px; line-height: 1.6; text-wrap: pretty;
+}
+.fig figcaption code { font-size: 12px; }
+.fig .fig-num { color: var(--fg); font-weight: 600; text-decoration: none; margin-right: 6px; }
+.fig .fig-num:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 639px) {
+  .prose > .fig { margin: 8px calc(-1 * var(--pad)); }
+  .fig figcaption { margin: 10px var(--pad) 0; }
+  .fig-head { padding: 14px 16px 2px; }
+  .fig-bar { padding: 8px 16px 12px; }
+  .fig-big b { font-size: 24px; }
+  .fig-stage { padding: 14px 16px 14px; }
+  .fig-stage.fig-wide::before { content: "swipe to see the whole figure →"; position: sticky; left: 0; display: block; margin-bottom: 6px; color: var(--f-faint); font-size: 11px; }
+  .fig-foot { padding: 10px 16px 14px; }
+  .fig-narr { padding: 10px 16px 12px; }
+}
+@media print {
+  .fig-actions { display: none; }
+}
+
+/* ---------- reusable bits for figures.js ---------- */
+/* moving dashes on an active wire */
+.fig .fx-flow { stroke-dasharray: 5 6; animation: fx-dash .7s linear infinite; }
+@keyframes fx-dash { to { stroke-dashoffset: -11; } }
+/* a label that rises and fades out */
+.fig .fx-pop { animation: fx-pop 1.6s cubic-bezier(.2, .8, .2, 1) both; transform-box: fill-box; paint-order: stroke; stroke: var(--f-bg-2); stroke-width: 4px; stroke-linejoin: round; }
+@keyframes fx-pop {
+  0% { opacity: 0; transform: translateY(5px); }
+  12% { opacity: 1; transform: none; }
+  78% { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 0; transform: translateY(-7px); }
+}
+/* narration line + step markers in the footer */
+.fig .fx-say { flex: 1 1 320px; color: var(--f-soft); font-size: 12.5px; line-height: 1.65; min-height: 3.3em; }
+.fig .fx-say > b:first-child { color: var(--f-ink); font-weight: 600; margin-right: 4px; }
+.fig .fx-steps { display: inline-flex; gap: 6px; }
+.fig .fx-steps button { width: 22px; height: 6px; padding: 0; border: 1px solid var(--f-line-2); background: transparent; cursor: pointer; transition: background-color .25s ease, width .25s ease, border-color .25s ease; }
+.fig .fx-steps button.done { background: var(--f-line-2); }
+.fig .fx-steps button.on { width: 34px; background: var(--f-accent); border-color: var(--f-accent); }
+.fig .fx-steps button:hover { border-color: var(--f-primary); }
+/* f.steps(): dots + narration between the stage and the foot; the play / pause button keeps its width */
+.fig-narr { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 18px; padding: 12px 24px 14px; border-top: 1px solid var(--f-line); }
+.fig-narr .fx-steps { margin-top: 7px; }
+.fig .fx-player { display: inline-flex; gap: 8px; }
+.fig-btn.fx-toggle { min-width: 11ch; }
+/* hover tooltip, like the portfolio's writing preview popover */
+.fig .fx-tip {
+  position: absolute; z-index: 2; pointer-events: none; min-width: 150px;
+  padding: 8px 11px; border: 1px solid color-mix(in srgb, var(--f-ink) 12%, transparent); border-radius: 10px; background: var(--f-bg-2);
+  color: var(--f-soft); font-size: 11.5px; line-height: 1.45; box-shadow: 0 4px 6px -1px #0000000f, 0 12px 28px -8px #00000024;
+}
+.fig .fx-tip b { color: var(--f-accent); font-size: 13px; }
+.fig .fx-tip span { color: var(--f-muted); }
+/* range slider in the actions row */
+.fig .fx-range { display: inline-flex; align-items: center; gap: 10px; color: var(--f-muted); font-size: 12px; }
+.fig .fx-range input { width: 150px; accent-color: var(--f-accent); }
+.fig .fx-range-v { min-width: 11ch; color: var(--f-soft); }
+/* text inside the panel never inherits the article's prose rhythm */
+.fig-panel p { margin: 0; line-height: 1.6; text-align: left; }
+/* SVG text that sits on top of busy fills */
+.fig .fx-halo { paint-order: stroke; stroke: var(--f-bg-2); stroke-width: 3.5px; stroke-linejoin: round; }
+
+/* ---------- text selection ----------
+   The page's ::selection (black background) only recolours HTML text; SVG labels keep their dark fill and
+   turned into black blocks. Diagram labels and controls aren't meant to be copied, so they don't select;
+   readable text (narration, tables, captions) selects with a light blue tint instead. */
+.fig-svg, .fig-svg *, .fig-head, .fig-bar, .fig-btn, .fig-seg, .fig .fx-steps, .fig-key, .fig .fx-tip {
+  -webkit-user-select: none; user-select: none;
+}
+.fig-panel ::selection, .fig figcaption ::selection, .fig figcaption::selection { background: rgba(0, 0, 205, 0.16); color: var(--f-ink); }
+
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<div class="progress" aria-hidden="true"></div>
+<article class="page">
+<div class="back"><a href="../"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17V7h10"/><path d="M17 17 7 7"/></svg> Home</a></div>
+<div class="post">
+<div class="hatch" aria-hidden="true"></div>
+<header class="post-head">
+  <h1>Optimizations Around Database</h1>
+  <p class="meta"><time datetime="2026-08-15">Aug 15, 2026</time> · 11 min read · By Atharv Sankpal</p>
+  <p class="lede">Connection pooling, caches, read replicas, the write-ahead log and sharding. The problems we hit when we scale a single SQL database, and the trade-offs that come with each fix.</p>
+  <ul class="tags"><li class="tag live">Interactive</li><li class="tag">Databases</li><li class="tag">PostgreSQL</li><li class="tag">Scaling</li></ul>
+</header>
+<div class="hatch" aria-hidden="true"></div>
+<nav class="toc" aria-label="Table of contents"><h2>Table of Contents</h2><ol><li><a href="#connection-pooling">Connection pooling</a></li><li><a href="#know-your-read-patterns">Know your read patterns</a></li><li><a href="#when-a-small-amount-of-data-is-hot">When a small amount of data is hot</a></li><li><a href="#when-everything-is-hot">When everything is hot</a></li><li><a href="#dual-writes" class="sub">Dual writes</a></li><li><a href="#the-write-ahead-log" class="sub">The write-ahead log</a></li><li><a href="#when-writes-cant-keep-up">When writes can&#39;t keep up</a></li><li><a href="#partitioning-vs-sharding" class="sub">Partitioning vs sharding</a></li><li><a href="#the-trade-offs">The trade-offs</a></li></ol></nav>
+<div class="article" id="main-content">
+<div class="prose">
+<aside class="callout note" role="note"><span class="callout-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span><div class="callout-title">Note</div><div class="callout-body"><p>This article is a summary of what we discussed in <a href="https://youtu.be/0nj2B4PEoDQ?si=82AXR45oBpRSttM6" target="_blank" rel="noopener">this video</a>.</p>
+</div></aside>
+<p>When we want to scale a database, we have very much the same kind of problems. Whatever database instance we have, let it be PostgreSQL or MySQL or MariaDB, doesn&#39;t matter. We will take any generic SQL database for instance.</p>
+<h2 id="connection-pooling"><a class="anchor" href="#connection-pooling" aria-label="Link to this section">#</a>Connection pooling</h2>
+<p>What happens when we have multiple instances of our same backend doing database queries to our single instance? There might be a case that each pod is opening a new connection for every database query that it makes. In SQL databases, this becomes a bottleneck.</p>
+<p>For example, for every new connection, <a href="https://www.postgresql.org/docs/current/connect-estab.html" target="_blank" rel="noopener">PostgreSQL spawns a new process</a>. That is a process our operating system and our database management system have to overlook. This adds a performance overhead on our existing system, which is doing query planning, and after that all the joins and whatnot.</p>
+<p>One of the simplest solutions is to add a connection pooler, like <a href="https://www.pgbouncer.org/" target="_blank" rel="noopener">PgBouncer</a>, to our system in front of our database. Usually we keep the connection pooler on the same physical machine as our database instance. The database runs on port <code>5432</code> for example, and the pooler on <code>6432</code>.</p>
+<p>The connection pooler maintains, let&#39;s say, 5 or 10 connections with our database, a number that is manageable. Every request that we want to make to our database goes through this connection pool. In a sense the connection pooler acts like a load balancer. Not actually a load balancer, but it holds persistent connections with the database, and its only task is to let the servers connect and disconnect. Whatever performance overhead the constant new connection creation was putting onto the database is now absorbed by the connection pooler.</p>
+<figure class="fig" id="figure-pool" data-figure="pool">
+<div class="fig-panel"><p class="fig-fallback">Figure 1 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-pool">Figure 1</a> Four backend pods send the same 12 queries. Without a pooler, every query opens a new connection and PostgreSQL spawns a process for it. With a pooler, the database keeps the same 5 connections.</figcaption>
+</figure><aside class="callout tip" role="note"><span class="callout-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V18h6v-1.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg></span><div class="callout-title">Instagram, 2012–13</div><div class="callout-body"><p>When Instagram was blowing up around 2012–13, they had a single PostgreSQL instance for millions of users, and they were vertically scaling it up. No sharding, no read replicas. Each process took 2 MB of their RAM, and their 64 GB of RAM was getting exhausted pretty quickly due to a lot of backend instances making connections. So they introduced a connection pool. (<a href="https://instagram-engineering.com/what-powers-instagram-hundreds-of-instances-dozens-of-technologies-adf2e22da2ad" target="_blank" rel="noopener">What Powers Instagram</a>, <a href="https://instagram-engineering.com/handling-growth-with-postgres-5-tips-from-instagram-d5d7e7ffdfcb" target="_blank" rel="noopener">Handling Growth with Postgres</a>)</p>
+</div></aside>
+<p>This is one of the simpler solutions, for a pretty early scale that we might have as our app grows.</p>
+<h2 id="know-your-read-patterns"><a class="anchor" href="#know-your-read-patterns" aria-label="Link to this section">#</a>Know your read patterns</h2>
+<p>Next, we have to identify the patterns of our users. We usually use a database to do two things: to hold the data that we write, and to access the data that we read.</p>
+<p>In most systems, reads become the bottleneck. Take any social media application like Reddit or Facebook. These are inherently read-heavy applications. A user that is visiting the website is usually only there to access the data, not to create it. There are a lot of people creating data, but the amount of people consuming that data skews a lot more than those who are creating. So we need to identify and analyze what kind of reads are coming into our application.</p>
+<h2 id="when-a-small-amount-of-data-is-hot"><a class="anchor" href="#when-a-small-amount-of-data-is-hot" aria-label="Link to this section">#</a>When a small amount of data is hot</h2>
+<p>Take a naive example of something like YouTube. A lot of videos are being uploaded by a lot of creators, but the consumers are more than the creators, and some creators are much more popular than the rest. Meaning there are only some videos that are accessed much more, and a lot of videos have very few views. A small amount of data is being accessed in much more quantity, and these videos are causing the bottleneck in our system.</p>
+<p>This data is what we call the hot shard or the hot part of the data. Hot means it is being actively accessed. The rest of the data is not causing any kind of bottleneck. Only this amount of data is.</p>
+<p>So what if we put this data into something that sits in front of our database? Our servers can reach that store instead, to get the data very fast, and it will be optimized for reads. We take the chunk of our database that is causing the problem and put it in the cache.</p>
+<figure class="fig" id="figure-cache" data-figure="cache">
+<div class="fig-panel"><p class="fig-fallback">Figure 2 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-cache">Figure 2</a> 12 reads, 9 of them for the two hot videos. Without a cache, every read reaches the database. With a cache, only the first read of each hot video and the cold reads do.</figcaption>
+</figure><p>This cache can be replaced with anything that is relevant to our problem:</p>
+<ul>
+<li><strong>Key-value data:</strong> <a href="https://redis.io/" target="_blank" rel="noopener">Redis</a>, or <a href="https://valkey.io/" target="_blank" rel="noopener">Valkey</a>. Valkey is a <a href="https://www.linuxfoundation.org/press/linux-foundation-launches-open-source-valkey-community" target="_blank" rel="noopener">fully open-source fork of Redis</a>, and a lot of companies are moving to it after the <a href="https://redis.io/blog/redis-adopts-dual-source-available-licensing/" target="_blank" rel="noopener">license change at Redis</a>.</li>
+<li><strong>Static files:</strong> HTML, videos, audio, anything that we might put in an S3 bucket. It should be in a CDN.</li>
+</ul>
+<p>Till this point we are solving pretty much 90% of systems&#39; problems.</p>
+<h2 id="when-everything-is-hot"><a class="anchor" href="#when-everything-is-hot" aria-label="Link to this section">#</a>When everything is hot</h2>
+<p>Now let&#39;s say we don&#39;t know for sure which data is causing the problem, or all of the data in our database is being accessed equally. Take any chunk: the reads on each of the chunks are the same. There is no hot shard here. Everything is hot, and our entire DB is being accessed.</p>
+<p>Previously we copied the part that was being constantly accessed. What if we just replicate the whole thing? What if we create another instance of our same database, a DB copy, and put the two DBs on separate host machines? Our servers make a request to a load balancer, and the load balancer routes the reads to either of those DBs.</p>
+<p>Seems pretty simple, right? So what about writes? How will the DB copy stay in sync with our original database?</p>
+<h3 id="dual-writes"><a class="anchor" href="#dual-writes" aria-label="Link to this section">#</a>Dual writes</h3>
+<p>One solution is: whenever a write happens, we first write into the original database, then write it to the copy database again. This approach is called <strong>dual write</strong>, and it is used a lot in our industry. But usually when <a href="https://stripe.com/blog/online-migrations" target="_blank" rel="noopener">migrating</a> from one set of technology to another, not when we are running the same instances.</p>
+<p>We can do this, but it causes a few problems:</p>
+<ul>
+<li><strong>Two network trips.</strong> Whenever we make an API request to another machine, most of the time is spent waiting for the data to travel from one machine to another. Not the computation, not the rendering. CPUs and RAM are very fast, but we can&#39;t fight physics: our data has to travel. With dual writes we double our write time, and our backend server is doing twice the work.</li>
+<li><strong>Out of sync.</strong> What if the copy DB fails? Let&#39;s say someone spilled water on the database machine. Then we write to the original only. Now what if the original goes down and the copy comes back on? We are out of sync, and we don&#39;t know which database to trust.</li>
+</ul>
+<figure class="fig" id="figure-dualwrite" data-figure="dualwrite">
+<div class="fig-panel"><p class="fig-fallback">Figure 3 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-dualwrite">Figure 3</a> One server writes to both databases. The copy misses a write while it is down. Then the original goes down, and the copy answers with an old value.</figcaption>
+</figure><p>Whatever truth we have in our system should be told by only one machine: a <strong>single point of truth</strong>. In our case, that is the original. To get there, we need to understand how a database performs a write.</p>
+<h3 id="the-write-ahead-log"><a class="anchor" href="#the-write-ahead-log" aria-label="Link to this section">#</a>The write-ahead log</h3>
+<p>Whenever a database wants to modify something, it first produces something called a <a href="https://www.postgresql.org/docs/current/wal-intro.html" target="_blank" rel="noopener"><strong>write-ahead log</strong></a>, or WAL. The name itself suggests that it is a log: a book that is being written ahead of any modification that we want to do to the data. Insert, update, delete, any kind of operation that modifies data that already exists in our system: the database first writes it in the WAL.</p>
+<p>The database produces a ledger of what it wants to do, so that it can do a lot of performance optimizations like bulk writes. There is so much to learn about database internals here, like how B+ trees work, how data is stored in pages, and how the database can cache those pages and write to them in bulk so that it doesn&#39;t have to do disk I/O every time. Disk I/O is slow compared to RAM I/O. The WAL is stored to the disk before the actual execution of any modification query.</p>
+<p>The WAL has everything written in detail about what operation to do. If we give this book to the copy database, it can reproduce the original database from start to end. This is the simple formula behind <a href="https://www.postgresql.org/docs/current/warm-standby.html" target="_blank" rel="noopener"><strong>read replicas</strong></a>: a replica of our database that we use for reads.</p>
+<figure class="fig" id="figure-wal" data-figure="wal">
+<div class="fig-panel"><p class="fig-fallback">Figure 4 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-wal">Figure 4</a> The primary plans and runs the update, and writes it to its WAL first. The WAL goes to both replicas, which only replay it. Reads then spread across the replicas.</figcaption>
+</figure><p>Whenever the original database produces WAL, we transfer it to the copy database. The copy doesn&#39;t have to do the computation that happened before the WAL was generated. It just executes the WAL: insert, update, delete, whatever operation the write-ahead log tells it to do. For this we usually use something called <strong>CDC, change data capture</strong> (in Postgres, built on <a href="https://www.postgresql.org/docs/current/logicaldecoding.html" target="_blank" rel="noopener">logical decoding</a>; <a href="https://debezium.io/" target="_blank" rel="noopener">Debezium</a> is a popular CDC tool): whenever a data change happens, we capture that change and send it over the network to our copy database.</p>
+<p>And we are not limited to one copy. We can send the WAL to another copy database as well. Now we have one primary database and two replicas. All the writes from our servers go to the primary, the primary generates the WAL, and we send the WAL to the replicated databases.</p>
+<aside class="callout note" role="note"><span class="callout-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span><div class="callout-title">Fun fact</div><div class="callout-body"><p>OpenAI uses around 50 read replicas of PostgreSQL. A couple of months back they released <a href="https://openai.com/index/scaling-postgresql/" target="_blank" rel="noopener">an article</a> about how they scaled PostgreSQL to that point.</p>
+</div></aside>
+<p>There are a lot of database native extensions around read replication. For Postgres, there is <a href="https://github.com/2ndQuadrant/pglogical" target="_blank" rel="noopener"><code>pglogical</code></a>, and there is <a href="https://www.pgpool.net/" target="_blank" rel="noopener"><strong>Pgpool</strong></a>, which does pretty much everything: connection pooling, load balancing and high availability. Always refer to the latest documentation.</p>
+<h2 id="when-writes-cant-keep-up"><a class="anchor" href="#when-writes-cant-keep-up" aria-label="Link to this section">#</a>When writes can&#39;t keep up</h2>
+<p>Reads are okay now. But what if our single database can&#39;t keep up with how much WAL it is producing, and doesn&#39;t get the time to execute it?</p>
+<p>Let&#39;s say we can execute 10 WAL per second, and our writes are amplified to the rate where we generate 15 per second. Each second we have an extra 5 that we can&#39;t execute. This is a problem.</p>
+<p>Take a users table with 1 million users. For our understanding we can split these users into two parts: the first being 1 to 500K, and the second 500K+1 to 1 million. Instead of writing everything to the one original DB, which can only execute 10 WAL per second, what if we split it into two separate databases? Each database instance can execute 10 WAL per second, so together we have 20 WAL executions per second. This is called <strong>sharding</strong>: we have created shards of our database.</p>
+<figure class="fig" id="figure-shard" data-figure="shard">
+<div class="fig-panel"><p class="fig-fallback">Figure 5 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-shard">Figure 5</a> 15 writes per second against a database that executes 10. On one node the backlog grows every second. Split the users table into two shards, and each shard has room to spare.</figcaption>
+</figure><h3 id="partitioning-vs-sharding"><a class="anchor" href="#partitioning-vs-sharding" aria-label="Link to this section">#</a>Partitioning vs sharding</h3>
+<p>There is also something called <a href="https://www.postgresql.org/docs/current/ddl-partitioning.html" target="_blank" rel="noopener"><strong>partitioning</strong></a>. Partitioning divides a large database into small pieces within a single database. Sharding takes this a step further by dividing those chunks across independent database servers.</p>
+<p>With partitioning, everything lives on the same node, the same physical server. But a single node can&#39;t do much more due to the physical constraints that it has to follow. Partitioning is a good way to solve this write amplification problem, but usually it is not enough when we reach that scale. Then we have to go to sharding, and scale horizontally, to have the peace of mind of having enough compute and enough physical resources.</p>
+<p>But sharding usually causes a lot of problems if not done correctly. Every database has a query planner. SQL is inherently declarative: we tell the database what we want, like <code>SELECT id, name FROM employee</code>, and how to execute that query is done by the <a href="https://www.postgresql.org/docs/current/planner-optimizer.html" target="_blank" rel="noopener">query planner</a>. If we have two separate nodes, we can&#39;t use the benefit of the query planner fully. If some of the data lives in the first shard and some in the second, we have to do two network calls to join the data. We have to do what the query planner does for us, and we have to maintain that system.</p>
+<p>Usually we don&#39;t shard on our own. There are managed services for this, like <a href="https://planetscale.com/" target="_blank" rel="noopener">PlanetScale</a>, with <a href="https://planetscale.com/blog/announcing-neki" target="_blank" rel="noopener">Neki</a> for Postgres. They started with MySQL first, on top of <a href="https://vitess.io/" target="_blank" rel="noopener"><strong>Vitess</strong></a>, an open-source clustering system that was <a href="https://vitess.io/docs/overview/history/" target="_blank" rel="noopener">developed at YouTube</a>. (This is not sponsored. I just love PlanetScale and use it.)</p>
+<h2 id="the-trade-offs"><a class="anchor" href="#the-trade-offs" aria-label="Link to this section">#</a>The trade-offs</h2>
+<p>There are a lot of nuances for each case, and we have to slightly adjust our approach.</p>
+<p>The write-ahead log that is generated is deleted after some time. We can&#39;t keep the whole book from start to end. There is also the problem of network failure. Let&#39;s say one copy database fails to get the WAL that was generated by our original database, and only the other copy received it. That copy is now out of sync: it doesn&#39;t have the actual data that our original database has. In this scenario we have two options. We can either provide stale data to our users, or we can be unavailable to users and give a 503 or a 500 error.</p>
+<p>You might say: if a database is out of sync, remove it from our setup, from the pool that the reads come through. In the case of Postgres that will usually be <a href="https://www.pgpool.net/" target="_blank" rel="noopener">Pgpool</a> or <a href="https://www.pgbouncer.org/" target="_blank" rel="noopener">PgBouncer</a>. But let&#39;s say there are 25K requests per second, and each database can only handle 10K reads per second. The first one is at its fullest, the second one is at its fullest, and we have 5K requests that are pending. If we route those 5K to the remaining databases, they might also go down. So we either drop them and become unavailable, or we keep the out-of-sync database and stay available, but inconsistent: we serve stale data to the user because the copy DB doesn&#39;t have the updated value.</p>
+<figure class="fig" id="figure-tradeoff" data-figure="tradeoff">
+<div class="fig-panel"><p class="fig-fallback">Figure 6 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-tradeoff">Figure 6</a> Three read databases, 10K reads per second each, and 25K reads per second coming in. One replica missed a WAL entry. Choose to stay available or to stay consistent, then watch the primary go down.</figcaption>
+</figure><p>This is the trade-off we make. We either stay highly available, or highly consistent: show only the latest data, and drop requests when we can&#39;t.</p>
+<p>There might also be the case where our original database itself goes down. Pgpool handles this as well: it <a href="https://www.pgpool.net/docs/latest/en/html/runtime-config-failover.html" target="_blank" rel="noopener">promotes one of the copies</a>, and that copy becomes our primary database for writes.</p>
+<p>That is the thought process, with the trade-offs, that comes when we build databases for scale. Pretty much everything in computer science is very interesting, especially databases and operating systems. I hope you learned something new.</p>
+</div>
+</div>
+</div>
+<nav class="pager" aria-label="More writing"><span></span><a class="next" href="./secondary-storage-batching.html"><div class="dir"><span>Next</span><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></div><p class="title">Secondary Storages and Optimizations Around Them</p></a></nav>
+</article>
+<button class="to-top" type="button" aria-label="Back to top"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+<script>
+/* Blog page runtime: reading progress, back to top, toc, previews, code copy, lab chrome, and the Kit API for simulations. */
+(function () {
+  "use strict";
+  var doc = document, root = doc.documentElement;
+
+  /* ---------- theme ----------
+     The site is light only. The studio preview can force a theme via data-theme, and Kit.onTheme
+     listeners still fire when that attribute changes. */
+  var themeListeners = [];
+  function currentTheme() { return root.getAttribute("data-theme") === "dark" ? "dark" : "light"; }
+  new MutationObserver(function () {
+    var t = currentTheme();
+    themeListeners.slice().forEach(function (fn) { try { fn(t); } catch (e) { console.error(e); } });
+  }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+
+  /* ---------- reading progress + back to top ---------- */
+  var prog = doc.querySelector(".progress"), toTop = doc.querySelector(".to-top"), ticking = false;
+  function onScroll() {
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(function () {
+      ticking = false;
+      var y = window.scrollY, max = Math.max(1, doc.documentElement.scrollHeight - innerHeight);
+      if (prog) prog.style.width = (Math.min(1, y / max) * 100).toFixed(2) + "%";
+      if (toTop) toTop.classList.toggle("show", y > 400);
+    });
+  }
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+  if (toTop) toTop.addEventListener("click", function () { scrollTo({ top: 0, behavior: "smooth" }); });
+
+  /* ---------- writing previews (blog index) ---------- */
+  var previewLinks = doc.querySelectorAll(".post-link[data-preview-body]");
+  if (previewLinks.length && window.matchMedia && matchMedia("(hover: hover)").matches) {
+    var pop = doc.createElement("div"), current = null;
+    pop.className = "popover"; pop.setAttribute("aria-hidden", "true");
+    pop.innerHTML = '<h3></h3><p class="meta"></p><p class="body"></p>';
+    doc.body.appendChild(pop);
+    var show = function (a) {
+      current = a;
+      pop.querySelector("h3").textContent = a.textContent.trim();
+      pop.querySelector(".meta").textContent = [a.dataset.previewDate, a.dataset.previewMinutes && a.dataset.previewMinutes + " min read"].filter(Boolean).join(" · ");
+      pop.querySelector(".body").textContent = a.dataset.previewBody;
+      var r = a.getBoundingClientRect(), gap = 8, h = pop.offsetHeight;
+      var top = r.bottom + gap + h <= innerHeight ? r.bottom + gap : r.top - gap - h;
+      pop.style.top = Math.max(8, top) + "px";
+      pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 16)) + "px";
+      pop.classList.add("show");
+    };
+    var hide = function () { current = null; pop.classList.remove("show"); };
+    previewLinks.forEach(function (a) {
+      a.addEventListener("mouseenter", function () { show(a); });
+      a.addEventListener("focus", function () { show(a); });
+      a.addEventListener("mouseleave", hide);
+      a.addEventListener("blur", hide);
+    });
+    addEventListener("scroll", function () {
+      if (!current) return;
+      if (current.matches(":hover") || current === doc.activeElement) show(current); else hide();
+    }, { passive: true });
+  }
+
+  /* ---------- toc highlight ---------- */
+  var tocLinks = [].slice.call(doc.querySelectorAll(".toc a"));
+  if (tocLinks.length && "IntersectionObserver" in window) {
+    var byId = {}, heads = [];
+    tocLinks.forEach(function (a) {
+      var id = decodeURIComponent(a.getAttribute("href").slice(1)), h = doc.getElementById(id);
+      if (h) { byId[id] = a; heads.push(h); }
+    });
+    var visible = {};
+    var setActive = function () {
+      var best = null;
+      for (var i = 0; i < heads.length; i++) {
+        if (heads[i].getBoundingClientRect().top < innerHeight * 0.35) best = heads[i]; else break;
+      }
+      tocLinks.forEach(function (a) { a.classList.remove("active"); });
+      var on = best && byId[best.id];
+      if (on) {
+        on.classList.add("active");
+        /* in the side toc, keep the active entry inside the toc's own scroll area (never scrolls the page) */
+        var box = on.closest(".toc");
+        if (box && box.scrollHeight > box.clientHeight) {
+          var top = on.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop, pad = 40;
+          if (top < box.scrollTop + pad) box.scrollTop = Math.max(0, top - pad);
+          else if (top + on.offsetHeight > box.scrollTop + box.clientHeight - pad) box.scrollTop = top + on.offsetHeight - box.clientHeight + pad;
+        }
+      }
+    };
+    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { visible[e.target.id] = e.isIntersecting; }); setActive(); }, { rootMargin: "0px 0px -60% 0px" });
+    heads.forEach(function (h) { io.observe(h); });
+    addEventListener("scroll", function () { requestAnimationFrame(setActive); }, { passive: true });
+    setActive();
+  }
+
+  /* toc in the side gutter (wide screens) hides while the wide simulation lab is on screen */
+  var tocEl = doc.querySelector(".toc"), labWrap = doc.querySelector(".lab-wrap");
+  if (tocEl && labWrap && "IntersectionObserver" in window) {
+    new IntersectionObserver(function (es) { tocEl.classList.toggle("away", es[0].isIntersecting); }).observe(labWrap);
+  }
+
+  /* ---------- code copy ---------- */
+  doc.querySelectorAll(".code .copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var code = btn.closest(".code").querySelector("pre code");
+      var txt = code ? code.textContent : "";
+      var done = function () { btn.textContent = "Copied"; btn.classList.add("done"); setTimeout(function () { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1400); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () {});
+      else { var ta = doc.createElement("textarea"); ta.value = txt; doc.body.appendChild(ta); ta.select(); try { doc.execCommand("copy"); done(); } catch (e) {} ta.remove(); }
+    });
+  });
+
+  /* ---------- lab: fullscreen ---------- */
+  doc.querySelectorAll(".lab").forEach(function (lab) {
+    lab.querySelectorAll("[data-fullscreen]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var fsEl = doc.fullscreenElement || doc.webkitFullscreenElement;
+        if (fsEl) { (doc.exitFullscreen || doc.webkitExitFullscreen).call(doc); return; }
+        if (lab.classList.contains("fake-fs")) { lab.classList.remove("fake-fs"); doc.body.style.overflow = ""; return; }
+        var req = lab.requestFullscreen || lab.webkitRequestFullscreen;
+        if (req) { var p = req.call(lab); if (p && p.catch) p.catch(fakeFs); }
+        else fakeFs();
+        function fakeFs() { lab.classList.add("fake-fs"); doc.body.style.overflow = "hidden"; }
+      });
+    });
+  });
+
+  /* ---------- Kit: the API simulations are written against ---------- */
+  var labEl = doc.querySelector(".lab"), labVisible = true;
+  if (labEl && "IntersectionObserver" in window) {
+    new IntersectionObserver(function (es) { labVisible = es[0].isIntersecting; }, { rootMargin: "300px 0px" }).observe(labEl);
+  }
+  var cs = function () { return getComputedStyle(root); };
+  var Kit = {
+    version: 1,
+    root: doc.querySelector(".lab-body"),
+    /* canvas text was laid out for a proportional face; mono overflows the diagram boxes */
+    font: { sans: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', mono: '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace' },
+    get theme() { return currentTheme(); },
+    /* figure animations explain the post, so they ignore prefers-reduced-motion */
+    reducedMotion: false,
+    /* read one CSS custom property, e.g. Kit.css("--accent") */
+    css: function (name) { return cs().getPropertyValue(name.indexOf("--") === 0 ? name : "--" + name).trim(); },
+    /* read many at once: Kit.colors(["accent", "ok"]) -> { accent: "#8b5cf6", ok: "..." } */
+    colors: function (names) { var s = cs(), o = {}; names.forEach(function (n) { o[n] = s.getPropertyValue("--" + n.replace(/^--/, "")).trim(); }); return o; },
+    /* run fn(theme) whenever light/dark changes; returns an unsubscribe function */
+    onTheme: function (fn) { themeListeners.push(fn); return function () { themeListeners = themeListeners.filter(function (f) { return f !== fn; }); }; },
+    /* animation loop, fn(dtSeconds, nowMs). Skips frames while the lab is off screen or the tab is hidden. */
+    loop: function (fn, opts) {
+      opts = opts || {}; var maxDt = opts.maxDt || 0.1, last = performance.now(), stopped = false;
+      function frame(now) {
+        if (stopped) return;
+        var dt = Math.min(maxDt, (now - last) / 1000); last = now;
+        if ((labVisible || opts.always) && !doc.hidden) {
+          try { fn(dt, now); } catch (e) { stopped = true; Kit.fail(e); return; }
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+      return { stop: function () { stopped = true; } };
+    },
+    /* size a canvas to its container for a logical width x height scene; returns { ctx, scale, dpr } with the
+       transform already applied so you draw in logical units */
+    fitCanvas: function (canvas, w, h, opts) {
+      opts = opts || {};
+      var box = opts.container || canvas.parentElement, avail = Math.max(0, box.clientWidth - 2);
+      var scale = Math.min(opts.max || 1.25, Math.max(avail / w, opts.min || 0.5)), dpr = window.devicePixelRatio || 1;
+      var cw = Math.round(w * scale), ch = Math.round(h * scale);
+      if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
+        canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+        canvas.style.width = cw + "px"; canvas.style.height = ch + "px";
+      }
+      var ctx = canvas.getContext("2d"); ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+      return { ctx: ctx, scale: scale, dpr: dpr };
+    },
+    /* resolves once web fonts are loaded so canvas text measures correctly */
+    ready: doc.fonts && doc.fonts.ready ? doc.fonts.ready.then(function () {}) : Promise.resolve(),
+    esc: function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); },
+    /* show a readable error inside the lab instead of a blank box */
+    fail: function (err) {
+      console.error(err);
+      if (!Kit.root) return;
+      var pre = doc.createElement("pre"); pre.className = "lab-error";
+      pre.textContent = "The simulation hit an error and stopped.\n\n" + (err && (err.stack || err.message) || err);
+      Kit.root.prepend(pre);
+    }
+  };
+  window.Kit = Kit;
+
+  /* ---------- figures: small animated scenes placed with `::figure <id>` lines ----------
+     figures.js registers each one with Kit.figure(id, function (f) { ... }). Every figure gets its own
+     clock that only runs while the figure is on screen, so waits and tweens pause when scrolled away. */
+  var SVGNS = "http://www.w3.org/2000/svg", CANCEL = {}, figs = [];
+  function build(ns, tag, attrs, kids) {
+    var el = ns ? doc.createElementNS(ns, tag) : doc.createElement(tag);
+    for (var k in attrs || {}) {
+      var v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === "text") el.textContent = v;
+      else if (k === "html") el.innerHTML = v;
+      else if (k.slice(0, 2) === "on" && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    (kids || []).forEach(function (c) { if (c != null) el.appendChild(typeof c === "string" ? doc.createTextNode(c) : c); });
+    return el;
+  }
+  /* Kit.h("div", { class: "x", text: "hi", onclick: fn }, [children]) and the SVG twin Kit.s("rect", {...}) */
+  Kit.h = function (tag, attrs, kids) { return build(null, tag, attrs, kids); };
+  Kit.s = function (tag, attrs, kids) { return build(SVGNS, tag, attrs, kids); };
+  Kit.ease = {
+    linear: function (t) { return t; },
+    out: function (t) { return 1 - Math.pow(1 - t, 3); },
+    inOut: function (t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; },
+  };
+  Kit.lerp = function (a, b, t) { return a + (b - a) * t; };
+
+  function makeFigure(el) {
+    var panel = el.querySelector(".fig-panel"), jobs = [], frames = [], token = null, enter = [], entered = false;
+    var f = {
+      el: el, panel: panel, id: el.getAttribute("data-figure"),
+      time: 0, visible: false, speed: 1, reducedMotion: Kit.reducedMotion,
+      h: Kit.h, s: Kit.s,
+      /* header + big readout + actions + stage, laid out like every other figure */
+      chrome: function (o) {
+        o = o || {};
+        var head = Kit.h("div", { class: "fig-head" }, [
+          Kit.h("span", { class: "fig-tags" }, [
+            o.tag ? Kit.h("span", { class: "fig-pill", text: "✻ " + o.tag }) : null,
+            o.label ? Kit.h("span", { class: "fig-label", text: o.label }) : null,
+          ]),
+          f.statusEl = Kit.h("span", { class: "fig-status", "aria-live": "polite" }),
+        ]);
+        var bar = Kit.h("div", { class: "fig-bar" }, [
+          Kit.h("div", { class: "fig-big" }, [f.bigEl = Kit.h("b"), f.unitEl = Kit.h("span")]),
+          f.actions = Kit.h("div", { class: "fig-actions" }),
+        ]);
+        f.stage = Kit.h("div", { class: "fig-stage" + (o.stageClass ? " " + o.stageClass : "") });
+        f.foot = Kit.h("div", { class: "fig-foot" });
+        panel.append(head, bar, f.stage, f.foot);
+        return f;
+      },
+      status: function (text, color) { f.statusEl.textContent = text; f.statusEl.style.color = color || ""; },
+      big: function (value, unit, color) {
+        f.bigEl.textContent = value; f.bigEl.style.color = color || "";
+        if (unit != null) f.unitEl.textContent = unit;
+      },
+      button: function (label, onClick, o) {
+        o = o || {};
+        var b = Kit.h("button", { type: "button", class: "fig-btn" + (o.primary ? " primary" : ""), text: label, onclick: onClick });
+        (o.parent || f.actions).appendChild(b); return b;
+      },
+      /* segmented control: f.segmented([["all", "acks=all"], ["1", "acks=1"]], "all", fn) */
+      segmented: function (options, value, onChange, o) {
+        o = o || {};
+        var wrap = Kit.h("div", { class: "fig-seg", role: "group", "aria-label": o.label || "" }), btns = [];
+        var set = function (v, fire) {
+          value = v;
+          btns.forEach(function (b) { var on = b.dataset.v === String(v); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
+          if (fire) onChange(v);
+        };
+        options.forEach(function (opt) {
+          var b = Kit.h("button", { type: "button", "data-v": opt[0], text: opt[1], onclick: function () { if (String(value) !== opt[0]) set(opt[0], true); } });
+          btns.push(b); wrap.appendChild(b);
+        });
+        set(value, false);
+        (o.parent || f.actions).appendChild(wrap);
+        return { get value() { return value; }, set: set };
+      },
+      svg: function (w, h, o) {
+        o = o || {};
+        var svg = Kit.s("svg", { viewBox: "0 0 " + w + " " + h, class: "fig-svg", role: "img", "aria-label": o.label || "" });
+        if (o.minWidth) { svg.style.minWidth = o.minWidth + "px"; (o.parent || f.stage).classList.add("fig-wide"); }
+        (o.parent || f.stage).appendChild(svg); return svg;
+      },
+      /* per-frame callback while visible: fn(dtSeconds, figureTimeMs) */
+      loop: function (fn) { frames.push(fn); },
+      /* first time the figure is mostly on screen; replays start from here */
+      onEnter: function (fn) { if (entered) fn(); else enter.push(fn); },
+      /* run an async sequence; starting a new one cancels the old. s.wait(ms), s.tween(ms, fn, ease).
+         With s.fast set, waits resolve at once and tweens jump to their end (used to skip to a step). */
+      run: function (fn) {
+        if (token) token.dead = true;
+        var tk = token = { dead: false };
+        jobs = jobs.filter(function (j) { return !j.tk.dead; });
+        var add = function (j) {
+          return new Promise(function (res, rej) {
+            if (tk.dead) return rej(CANCEL);
+            j.tk = tk; j.start = f.time; j.res = res; jobs.push(j);
+          });
+        };
+        var now = function () { return tk.dead ? Promise.reject(CANCEL) : Promise.resolve(); };
+        var s = {
+          fast: false,
+          get alive() { return !tk.dead; },
+          wait: function (ms) { return s.fast ? now() : add({ dur: ms }); },
+          tween: function (ms, cb, ease) {
+            if (s.fast) { if (!tk.dead) cb(1); return now(); }
+            if (f.reducedMotion) { cb(1); return s.wait(Math.min(ms, 120)); }
+            return add({ dur: ms, cb: cb, ease: ease || Kit.ease.inOut });
+          },
+        };
+        return Promise.resolve().then(function () { return fn(s); }).catch(function (e) { if (e !== CANCEL) f.fail(e); });
+      },
+      stop: function () { if (token) token.dead = true; jobs = []; },
+      /* step-by-step playback: prev / play-pause / next buttons, step dots and a narration line.
+         list: [{ title, text, play: async s => {} }], text can be a function. Going to step i runs o.reset(),
+         replays steps 0..i-1 with s.fast (no waiting), then plays step i, so every play() has to reach the
+         same end state at any speed. o.enter(i) runs as step i starts. Autoplay starts when the figure
+         comes into view, moves on o.gap ms after each step and stops after the last one. */
+      steps: function (list, o) {
+        o = o || {};
+        var last = list.length - 1, index = 0, auto = false, busy = false, started = false;
+        var player = Kit.h("div", { class: "fx-player", role: "group", "aria-label": "Steps" });
+        f.actions.appendChild(player);
+        var prev = f.button("← prev", function () { go(index - 1); }, { parent: player });
+        var toggle = f.button("", function () { if (auto) pause(); else play(); }, { primary: true, parent: player });
+        var next = f.button("next →", function () { go(index + 1); }, { parent: player });
+        toggle.classList.add("fx-toggle");
+        prev.setAttribute("aria-label", "Previous step"); next.setAttribute("aria-label", "Next step");
+        var dots = Kit.h("span", { class: "fx-steps" }), say = Kit.h("span", { class: "fx-say", "aria-live": "polite" });
+        list.forEach(function (st, i) {
+          dots.appendChild(Kit.h("button", { type: "button", "aria-label": "Step " + (i + 1) + ": " + st.title, onclick: function () { go(i); } }));
+        });
+        panel.insertBefore(Kit.h("div", { class: "fig-narr" }, [dots, say]), f.foot || null);
+
+        function sync() {
+          var replay = !auto && started && index === last && !busy;
+          prev.disabled = index === 0; next.disabled = index === last;
+          toggle.textContent = auto ? "❚❚ pause" : replay ? "↻ replay" : "▶ play";
+          toggle.setAttribute("aria-label", auto ? "Pause autoplay" : replay ? "Replay from the first step" : "Play the steps");
+          [].forEach.call(dots.children, function (b, k) {
+            b.classList.toggle("on", k === index); b.classList.toggle("done", k < index);
+            if (k === index) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+          });
+        }
+        function label(i) {
+          index = i;
+          var st = list[i], text = typeof st.text === "function" ? st.text() : st.text;
+          say.replaceChildren(Kit.h("b", { text: st.title }), " " + (text || ""));
+          sync();
+        }
+        function from(s, k) {
+          label(k); busy = true; sync();
+          if (o.enter) o.enter(k);
+          return s.wait(o.lead == null ? 250 : o.lead).then(function () { return list[k].play(s); }).then(function () {
+            busy = false;
+            if (k === last) auto = false;
+            sync();
+            if (!auto) return;
+            return s.wait(o.gap == null ? 1500 : o.gap).then(function () { if (auto) return from(s, k + 1); });
+          });
+        }
+        /* go to step i and play it; keep = leave autoplay as it is (otherwise a manual jump pauses it) */
+        function go(i, keep) {
+          i = Math.max(0, Math.min(last, i));
+          if (!keep) auto = false;
+          started = true; busy = true; label(i);
+          return f.run(function (s) {
+            if (o.reset) o.reset();
+            s.fast = true;
+            var p = Promise.resolve();
+            list.slice(0, i).forEach(function (st) { p = p.then(function () { return st.play(s); }); });
+            return p.then(function () { s.fast = false; return from(s, i); });
+          });
+        }
+        function play() {
+          auto = true;
+          if (busy) { sync(); return; }
+          go(!started || index === last ? 0 : index + 1, true);
+        }
+        function pause() { auto = false; sync(); }
+        /* the figure moved itself (a scrub, a slider): stop, pause, and call step i the current one */
+        function seek(i) {
+          f.stop(); auto = false; busy = false; started = true;
+          label(Math.max(0, Math.min(last, i)));
+        }
+        f.el.addEventListener("keydown", function (e) {
+          var t = e.target;
+          if (e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t === f.stage) return;
+          if (e.key === "ArrowLeft" && index > 0) { e.preventDefault(); go(index - 1); }
+          else if (e.key === "ArrowRight" && index < last) { e.preventDefault(); go(index + 1); }
+        });
+        if (o.reset) o.reset();
+        label(0);
+        if (o.enter) o.enter(0);
+        f.onEnter(function () { if (!started && o.autoplay !== false) play(); });
+        return {
+          go: go, play: play, pause: pause, seek: seek,
+          next: function () { go(index + 1); }, prev: function () { go(index - 1); },
+          /* replay the current step, e.g. after a scenario control changed */
+          redo: function () { go(index, true); },
+          get index() { return index; }, get auto() { return auto; }, get length() { return list.length; },
+        };
+      },
+      fail: function (err) {
+        console.error(err);
+        panel.prepend(Kit.h("pre", { class: "fig-error", text: "Figure \"" + f.id + "\" hit an error.\n\n" + (err && (err.stack || err.message) || err) }));
+      },
+      _tick: function (dt) {
+        f.time += dt * 1000 * f.speed;
+        var list = jobs.slice();
+        for (var i = 0; i < list.length; i++) {
+          var j = list[i];
+          if (j.tk.dead) continue;
+          var p = j.dur > 0 ? Math.min(1, (f.time - j.start) / j.dur) : 1;
+          if (j.cb) j.cb(j.ease(p));
+          if (p >= 1) { jobs.splice(jobs.indexOf(j), 1); j.res(); }
+        }
+        for (var k = 0; k < frames.length; k++) frames[k](dt, f.time);
+      },
+      _enter: function () { if (entered) return; entered = true; enter.splice(0).forEach(function (fn) { fn(); }); },
+    };
+    return f;
+  }
+
+  /* point and tangent angle at fraction t of an SVG path */
+  Kit.pointAt = function (path, t) {
+    var len = path.getTotalLength(), p = path.getPointAtLength(Math.max(0, Math.min(1, t)) * len);
+    return { x: p.x, y: p.y };
+  };
+
+  var figIO = "IntersectionObserver" in window ? new IntersectionObserver(function (es) {
+    es.forEach(function (e) {
+      var f = e.target.__fig; if (!f) return;
+      f.visible = e.isIntersecting;
+      if (e.intersectionRatio >= 0.35 || (e.isIntersecting && e.boundingClientRect.height > innerHeight)) f._enter();
+    });
+  }, { threshold: [0, 0.35, 0.6] }) : null;
+
+  var figLast = 0, figLooping = false;
+  function figFrame(now) {
+    var dt = figLast ? Math.min(0.1, (now - figLast) / 1000) : 0; figLast = now;
+    if (!doc.hidden) figs.forEach(function (f) { if (f.visible) { try { f._tick(dt); } catch (e) { f.visible = false; f.fail(e); } } });
+    requestAnimationFrame(figFrame);
+  }
+
+  Kit.figure = function (id, setup) {
+    var els = doc.querySelectorAll('figure.fig[data-figure="' + id + '"]');
+    if (!els.length) { console.warn('Kit.figure("' + id + '"): the article has no "::figure ' + id + '" line'); return; }
+    els.forEach(function (el) {
+      if (el.__fig) return;
+      el.querySelector(".fig-panel").innerHTML = "";
+      el.classList.add("mounted");
+      var f = el.__fig = makeFigure(el);
+      figs.push(f);
+      try { setup(f); } catch (e) { f.fail(e); }
+      if (figIO) figIO.observe(el); else { f.visible = true; f._enter(); }
+    });
+    if (!figLooping) { figLooping = true; requestAnimationFrame(figFrame); }
+  };
+  /* called after figures.js: flag ::figure lines that nothing registered */
+  Kit.figuresReady = function () {
+    doc.querySelectorAll("figure.fig:not(.mounted) .fig-fallback").forEach(function (p) {
+      var id = p.closest("figure").getAttribute("data-figure");
+      console.warn('No Kit.figure("' + id + '") in figures.js');
+    });
+  };
+})();
+
+</script>
+
+<script>
+/* figures: database-scaling */
+try {
+(function (Kit) {
+"use strict";
+/*
+ * Figures for the database scaling post. Each Kit.figure(id, setup) fills the `::figure <id>` block
+ * with the same name in post.md.
+ */
+const { h, s: sv } = Kit;
+
+/* colours come from template/figure.css (--fx-*), so the figures follow the site theme from one place.
+   bg is the stage surface, bg2 the card the boxes sit on. */
+const CSSV = getComputedStyle(document.querySelector("figure.fig") || document.documentElement);
+const v = n => CSSV.getPropertyValue("--fx-" + n).trim();
+const C = {
+  bg: v("bg-2"), bg2: v("bg"), line: v("line"), line2: v("line-2"),
+  ink: v("ink"), soft: v("soft"), muted: v("muted"), faint: v("faint"), accent: v("accent"),
+  ok: v("ok"), bad: v("bad"), warn: v("warn"),
+  /* diagram parts: backend servers, the pooler, the database, the cache, replicas and the WAL */
+  app: v("prod"), pool: v("cons"), db: v("pg"), cache: v("dest"), rep: v("kafka"), wal: v("retry"),
+};
+const OKT = C.ok, BADT = C.bad, WARNT = C.warn;
+
+/* ---------- small SVG kit ---------- */
+
+/* labelled box with a coloured accent bar; state() switches idle / on / dim / bad / ok */
+function box(svg, o) {
+  const g = sv("g");
+  const rect = sv("rect", { x: o.x, y: o.y, width: o.w, height: o.h, rx: o.r ?? 0, "stroke-width": 1.2 });
+  rect.style.cssText = `fill:${C.bg2};stroke:${C.line2};transition:fill .35s ease, stroke .35s ease`;
+  const bar = sv("rect", { x: o.x, y: o.y + 9, width: 3, height: (o.barH || o.h) - 18, rx: 1.5, fill: o.color });
+  const size = o.size || 13;
+  const top = o.top ?? (o.sub != null ? o.h / 2 - 3 : o.h / 2 + 4.5);
+  const label = sv("text", { x: o.x + 14, y: o.y + top, "font-size": size, "font-weight": 600, text: o.label });
+  label.style.fill = C.ink;
+  const sub = o.sub != null ? sv("text", { x: o.x + 14, y: o.y + top + 16, "font-size": 10.5, text: o.sub }) : null;
+  if (sub) sub.style.fill = C.muted;
+  g.append(rect, bar, label);
+  if (sub) g.append(sub);
+  g.style.transition = "opacity .35s ease";
+  (o.parent || svg).appendChild(g);
+  return {
+    g, rect, label, sub, x: o.x, y: o.y, w: o.w, h: o.h, cx: o.x + o.w / 2, cy: o.y + o.h / 2, color: o.color,
+    state(st) {
+      rect.style.stroke = st === "on" ? o.color : st === "bad" ? C.bad : st === "ok" ? C.ok : C.line2;
+      rect.style.fill = st === "on" ? o.color + "1f" : st === "bad" ? C.bad + "17" : st === "ok" ? C.ok + "14" : C.bg2;
+      g.style.opacity = st === "dim" ? 0.42 : 1;
+    },
+    text(t, color) { if (sub) { sub.textContent = t; sub.style.fill = color || C.muted; } },
+  };
+}
+
+function wire(parent, d, o = {}) {
+  const p = sv("path", { d, fill: "none", "stroke-width": o.w || 1.4, "stroke-linecap": "round", "stroke-dasharray": o.dash || null });
+  p.style.cssText = `stroke:${o.color || C.line2};transition:stroke .35s ease, opacity .35s ease`;
+  parent.appendChild(p);
+  return p;
+}
+const lit = (p, color) => { p.style.stroke = color || C.line2; p.classList.toggle("fx-flow", !!color); };
+
+function txt(parent, x, y, text, o = {}) {
+  const t = sv("text", { x, y, "font-size": o.size || 11, "text-anchor": o.anchor || "start", "font-weight": o.weight || null, text });
+  t.style.fill = o.color || C.muted;
+  parent.appendChild(t);
+  return t;
+}
+
+/* a dot that travels along a path; o.reverse runs it backwards, o.to stops part way */
+async function travel(s, layer, path, color, ms = 700, o = {}) {
+  const c = sv("circle", { r: o.r || 5, cx: -99, cy: -99, fill: color, stroke: C.bg, "stroke-width": 2 });
+  layer.appendChild(c);
+  const to = o.to ?? 1;
+  try {
+    await s.tween(ms, t => {
+      const u = t * to, p = Kit.pointAt(path, o.reverse ? 1 - u : u);
+      c.setAttribute("cx", p.x); c.setAttribute("cy", p.y);
+    }, o.ease || Kit.ease.inOut);
+  } finally {
+    c.remove();
+  }
+}
+
+/* a block of data that moves from one place to another along a small arc */
+async function slide(s, layer, o, ms = 800) {
+  const r = sv("rect", { x: o.x0, y: o.y0, width: o.w, height: o.h, "stroke-width": 1.2 });
+  r.style.cssText = `fill:${o.color}33;stroke:${o.color}`;
+  const t = o.label ? txt(layer, 0, 0, o.label, { size: 10.5, anchor: "middle", color: C.ink, weight: 600 }) : null;
+  layer.appendChild(r);
+  if (t) layer.appendChild(t);
+  try {
+    await s.tween(ms, k => {
+      const x = Kit.lerp(o.x0, o.x1, k), y = Kit.lerp(o.y0, o.y1, k) - (o.arc ?? 40) * Math.sin(Math.PI * k);
+      r.setAttribute("x", x); r.setAttribute("y", y);
+      if (t) { t.setAttribute("x", x + o.w / 2); t.setAttribute("y", y + o.h / 2 + 4); }
+    });
+  } finally {
+    r.remove();
+    if (t) t.remove();
+  }
+}
+
+/* a short label that rises and fades; removed after it finishes */
+function pop(layer, x, y, text, color = C.ink, o = {}) {
+  const t = sv("text", { x, y, "font-size": o.size || 11.5, "font-weight": 600, "text-anchor": o.anchor || "middle", class: "fx-pop", text });
+  t.style.fill = color;
+  t.style.animationDuration = (o.ms || 1600) + "ms";
+  layer.appendChild(t);
+  setTimeout(() => t.remove(), (o.ms || 1600) + 50);
+  return t;
+}
+
+/* a small cell (a page, a block, a buffer slot) with a label; fill() colours it, clear() empties it */
+function cell(parent, x, y, w, ht, o = {}) {
+  const r = sv("rect", { x, y, width: w, height: ht, "stroke-width": 1 });
+  r.style.cssText = `fill:${C.bg};stroke:${C.line2};transition:fill .3s ease, stroke .3s ease`;
+  parent.appendChild(r);
+  const t = txt(parent, x + w / 2, y + (o.sub ? ht / 2 - 1 : ht / 2 + 4), o.text || "", { size: o.size || 10.5, anchor: "middle", color: C.ink, weight: 600 });
+  const sub = o.sub ? txt(parent, x + w / 2, y + ht / 2 + 12, o.sub, { size: 9.5, anchor: "middle" }) : null;
+  return {
+    r, t, sub, x, y, w, h: ht,
+    fill(color, text) {
+      r.style.fill = color ? color + "26" : C.bg;
+      r.style.stroke = color || C.line2;
+      if (text != null) t.textContent = text;
+    },
+    clear() { this.fill(null, o.text || ""); if (sub) sub.textContent = o.sub; },
+  };
+}
+
+
+/* ======================================================================
+   Figure: a new connection per query vs a connection pooler
+   ====================================================================== */
+Kit.figure("pool", f => {
+  f.chrome({ tag: "postgres · 1 process per connection", label: "connection pooling" });
+  const svg = f.svg(880, 300, { label: "Four backend pods, a connection pooler and PostgreSQL on the same host machine", minWidth: 660 });
+  const back = sv("g"), wires = sv("g"), nodes = sv("g"), fx = sv("g");
+  svg.append(back, wires, nodes, fx);
+
+  const PODS = 4, Q = 12, CONNS = 5;
+  const py = i => 47 + i * 66;
+  const direct = Array.from({ length: PODS }, (_, i) => wire(wires, `M140,${py(i)} C360,${py(i)} 520,${110 + i * 40} 640,${110 + i * 40}`));
+  const toPool = Array.from({ length: PODS }, (_, i) => wire(wires, `M140,${py(i)} C280,${py(i)} 300,${110 + i * 40} 420,${110 + i * 40}`));
+  const conns = Array.from({ length: CONNS }, (_, k) => wire(wires, `M570,${100 + k * 34} H640`, { w: 2 }));
+  const pods = Array.from({ length: PODS }, (_, i) => box(nodes, { x: 10, y: py(i) - 23, w: 130, h: 46, label: "backend-" + (i + 1), sub: "pod", color: C.app }));
+  box(back, { x: 400, y: 10, w: 470, h: 280, top: 22, label: "host machine", sub: "pooler and database on the same machine", color: C.muted });
+  const pooler = box(nodes, { x: 420, y: 70, w: 150, h: 200, top: 24, label: "pooler", sub: ":6432", color: C.pool });
+  const db = box(nodes, { x: 640, y: 70, w: 215, h: 200, top: 24, label: "postgres", sub: ":5432", color: C.db });
+  txt(nodes, 656, 124, "processes", { size: 10, color: C.faint });
+  const procs = Array.from({ length: Q }, (_, i) => cell(nodes, 656 + (i % 6) * 32, 132 + Math.floor(i / 6) * 28, 20, 20));
+  const ramBg = sv("rect", { x: 656, y: 206, width: 184, height: 10 });
+  ramBg.style.fill = C.line;
+  const ram = sv("rect", { x: 656, y: 206, width: 0, height: 10 });
+  ram.style.transition = "width .3s ease, fill .3s ease";
+  nodes.append(ramBg, ram);
+  const ramT = txt(nodes, 656, 236, "", { size: 10.5 });
+
+  const mode = f.segmented([["none", "no pooler"], ["pool", "pooler"]], "none", () => steps.redo(), { label: "Setup" });
+  const pooled = () => mode.value === "pool";
+  let n = 0;
+  const setProcs = (k, color) => {
+    n = k;
+    procs.forEach((p, i) => i < k ? p.fill(color || C.db) : p.clear());
+    ram.setAttribute("width", 184 * k / Q);
+    ram.style.fill = color || C.db;
+    ramT.textContent = `RAM: ${k} × 2 MB = ${k * 2} MB`;
+    f.big(String(k), k === 1 ? "process on the database" : "processes on the database");
+  };
+
+  /* before step 1: no queries yet; with a pooler the 5 persistent connections already exist */
+  function reset() {
+    fx.replaceChildren();
+    [pooler, db].forEach(b => b.state("idle"));
+    pods.forEach(p => p.state("idle"));
+    pooler.state(pooled() ? "idle" : "dim");
+    direct.forEach(w => { lit(w); w.style.opacity = pooled() ? 0 : 1; });
+    toPool.forEach(w => { lit(w); w.style.opacity = pooled() ? 1 : 0; });
+    conns.forEach(w => { lit(w, pooled() ? C.pool : null); w.style.opacity = pooled() ? 1 : 0; });
+    setProcs(pooled() ? CONNS : 0);
+    f.status(pooled() ? "the pooler holds 5 persistent connections" : "every query opens a new connection");
+  }
+  function enter() { fx.replaceChildren(); }
+
+  const STEPS = [
+    {
+      title: "queries",
+      text: () => pooled()
+        ? "Every query goes to the pooler. The pooler sends it over one of its 5 persistent connections."
+        : "Every pod opens a new connection for every query. PostgreSQL spawns a new process for each one.",
+      async play(s) {
+        for (let q = 0; q < Q; q++) {
+          const i = q % PODS;
+          pods[i].state("on");
+          if (pooled()) {
+            await travel(s, fx, toPool[i], C.app, 260);
+            await travel(s, fx, conns[q % CONNS], C.pool, 160);
+          } else {
+            await travel(s, fx, direct[i], C.app, 360);
+            setProcs(n + 1);
+            pop(fx, 748, 112, "+1 process", C.soft, { size: 10.5, ms: 900 });
+          }
+          pods[i].state("idle");
+        }
+        f.status(`${Q} queries done`);
+      },
+    },
+    {
+      title: "overhead",
+      text: () => pooled()
+        ? "The database still has 5 processes. The constant new connection creation is absorbed by the pooler."
+        : "12 processes now share the RAM and CPU that query planning and the joins need.",
+      async play(s) {
+        if (pooled()) { db.state("ok"); pooler.state("on"); f.status("5 connections, any number of queries", OKT); }
+        else { db.state("bad"); setProcs(n, C.bad); f.status("a new process for every query", BADT); }
+        await s.wait(700);
+      },
+    },
+    {
+      title: "at scale",
+      text: () => pooled()
+        ? "10 persistent connections cost about 20 MB of RAM, at any number of pods."
+        : "At 2 MB per process, 64 GB of RAM is gone at about 32,000 connections. This is what Instagram hit.",
+      async play(s) {
+        if (pooled()) f.big("20 MB", "RAM for 10 pooled connections", OKT);
+        else f.big("64 GB", "RAM for 32,768 connections", BADT);
+        await s.wait(700);
+      },
+    },
+  ];
+  const steps = f.steps(STEPS, { reset, enter });
+});
+
+/* ======================================================================
+   Figure: the hot part of the data in a cache
+   ====================================================================== */
+Kit.figure("cache", f => {
+  f.chrome({ tag: "read-heavy", label: "a cache for the hot data" });
+  const svg = f.svg(880, 210, { label: "Servers, a cache in front of the database, and a database with ten videos", minWidth: 660 });
+  const wires = sv("g"), nodes = sv("g"), fx = sv("g");
+  svg.append(wires, nodes, fx);
+
+  const wCache = wire(wires, "M140,112 C220,112 220,58 300,58");
+  const wDirect = wire(wires, "M140,138 C330,138 450,165 600,165");
+  const wMiss = wire(wires, "M530,58 H600");
+  const app = box(nodes, { x: 10, y: 92, w: 130, h: 66, label: "servers", sub: "read", color: C.app });
+  const cache = box(nodes, { x: 300, y: 20, w: 230, h: 76, top: 22, label: "cache", sub: "redis · valkey", color: C.cache });
+  const slots = [0, 1].map(k => cell(nodes, 432 + k * 48, 42, 42, 32, { text: "—" }));
+  const db = box(nodes, { x: 600, y: 20, w: 270, h: 176, top: 22, label: "database", sub: "videos", color: C.db });
+  const VIEWS = ["9.1M", "6.4M", "2K", "310", "4K", "80", "1K", "650", "12K", "90"];
+  const vids = VIEWS.map((views, i) => cell(nodes, 616 + (i % 5) * 50, 76 + Math.floor(i / 5) * 56, 44, 44, { text: "v" + (i + 1), sub: views }));
+  const HOT = [0, 1];
+  /* video index of each read, 9 of the 12 for v1 and v2 */
+  const READS = [0, 1, 0, 4, 0, 1, 7, 0, 1, 0, 2, 1];
+
+  const mode = f.segmented([["none", "no cache"], ["cache", "cache"]], "cache", () => steps.redo(), { label: "Setup" });
+  const cached = () => mode.value === "cache";
+  let dbReads = 0, hits = 0, inCache = [];
+  const count = color => f.big(String(dbReads), `database reads · ${hits} cache ${hits === 1 ? "hit" : "hits"}`, color);
+  f.foot.append(
+    h("span", { class: "fig-key" }, [h("i", { style: `background:${C.warn}` }), "hot data"]),
+    h("span", { class: "fig-key" }, [h("i", { style: `background:${C.cache}` }), "in the cache"]),
+  );
+
+  /* before step 1: an empty cache, no reads */
+  function reset() {
+    fx.replaceChildren();
+    dbReads = 0; hits = 0; inCache = [];
+    vids.forEach(c => c.clear());
+    slots.forEach(c => c.clear());
+    [app, cache, db].forEach(b => b.state("idle"));
+    cache.state(cached() ? "idle" : "dim");
+    wCache.style.opacity = wMiss.style.opacity = cached() ? 1 : 0;
+    wDirect.style.opacity = cached() ? 0 : 1;
+    count();
+    f.status("only a small amount of data is accessed a lot");
+  }
+  function enter() { fx.replaceChildren(); [wCache, wDirect, wMiss].forEach(w => lit(w)); }
+
+  const STEPS = [
+    {
+      title: "hot data",
+      text: "A few videos get most of the views. v1 and v2 are the hot part of the data. The rest of the data causes no bottleneck.",
+      async play(s) {
+        HOT.forEach(i => vids[i].fill(C.warn));
+        f.status("v1 and v2 are hot", WARNT);
+        await s.wait(900);
+      },
+    },
+    {
+      title: "reads",
+      text: () => cached()
+        ? "12 reads come in. A hot video comes from the database once, then from the cache."
+        : "12 reads come in. Every one of them reaches the database.",
+      async play(s) {
+        app.state("on");
+        for (const i of READS) {
+          if (!cached()) {
+            await travel(s, fx, wDirect, C.app, 380);
+            dbReads++; count();
+            vids[i].fill(HOT.includes(i) ? C.bad : C.db);
+            continue;
+          }
+          await travel(s, fx, wCache, C.app, 260);
+          const k = inCache.indexOf(i);
+          if (k >= 0) {
+            hits++; count();
+            slots[k].fill(C.ok);
+            pop(fx, 476, 14, "✓ hit", OKT, { size: 10.5, ms: 800 });
+            continue;
+          }
+          pop(fx, 476, 14, "miss", C.soft, { size: 10.5, ms: 800 });
+          await travel(s, fx, wMiss, C.cache, 200);
+          dbReads++; count();
+          if (HOT.includes(i)) { inCache.push(i); slots[inCache.length - 1].fill(C.cache, "v" + (i + 1)); vids[i].fill(C.cache); }
+        }
+        app.state("idle");
+        slots.forEach((c, k) => { if (inCache[k] != null) c.fill(C.cache); });
+        f.status("all 12 reads answered");
+      },
+    },
+    {
+      title: "result",
+      text: () => cached()
+        ? `${dbReads} of 12 reads reached the database. The hot data is served from a store optimized for reads.`
+        : "12 of 12 reads reached the database, most of them for the same two videos.",
+      async play(s) {
+        db.state(cached() ? "ok" : "bad");
+        count(cached() ? OKT : BADT);
+        f.status(cached() ? "the database only sees the cold reads" : "the hot videos are the bottleneck", cached() ? OKT : BADT);
+        await s.wait(700);
+      },
+    },
+  ];
+  const steps = f.steps(STEPS, { reset, enter });
+});
+
+/* ======================================================================
+   Figure: dual write gets out of sync
+   ====================================================================== */
+Kit.figure("dualwrite", f => {
+  f.chrome({ tag: "dual write", label: "two writes, two truths" });
+  const svg = f.svg(880, 240, { label: "A backend server writing to an original database and a copy database on two hosts", minWidth: 660 });
+  const wires = sv("g"), nodes = sv("g"), fx = sv("g");
+  svg.append(wires, nodes, fx);
+
+  const w1 = wire(wires, "M150,108 C350,108 400,55 560,55");
+  const w2 = wire(wires, "M150,132 C350,132 400,185 560,185");
+  const app = box(nodes, { x: 10, y: 90, w: 140, h: 60, label: "backend server", sub: "dual write", color: C.app, size: 12 });
+  const orig = box(nodes, { x: 560, y: 20, w: 240, h: 70, label: "db original", sub: "", color: C.db });
+  const copy = box(nodes, { x: 560, y: 150, w: 240, h: 70, label: "db copy", sub: "", color: C.rep });
+  txt(nodes, 812, 59, "host 1", { size: 10.5, color: C.faint });
+  txt(nodes, 812, 189, "host 2", { size: 10.5, color: C.faint });
+  let ov = 0, cv = 0, trips = 0;
+  const show = () => { orig.text(`x = ${ov}`, C.ink); copy.text(`x = ${cv}`, C.ink); };
+  const count = () => f.big(String(trips), trips === 1 ? "network trip" : "network trips");
+
+  async function write(s, path, node, value, set) {
+    lit(path, C.app);
+    await travel(s, fx, path, C.app, 650);
+    set(value); show(); node.state("on");
+    pop(fx, node.cx, node.y - 6, `x = ${value}`, C.ink);
+    trips++; count();
+    lit(path);
+  }
+
+  /* before step 1: both databases agree on x = 0 */
+  function reset() {
+    fx.replaceChildren();
+    ov = 0; cv = 0; trips = 0;
+    [app, orig, copy].forEach(b => b.state("idle"));
+    show(); count();
+    f.status("both databases say x = 0");
+  }
+  function enter() { fx.replaceChildren(); lit(w1); lit(w2); }
+
+  const STEPS = [
+    {
+      title: "write x = 1",
+      text: "The server writes x = 1 to the original, then writes it again to the copy. 1 write costs 2 network trips.",
+      async play(s) {
+        app.state("on");
+        await write(s, w1, orig, 1, x => { ov = x; });
+        await write(s, w2, copy, 1, x => { cv = x; });
+        app.state("idle"); orig.state("idle"); copy.state("idle");
+        f.status("in sync · but the server did twice the work");
+      },
+    },
+    {
+      title: "copy down",
+      text: "Someone spills water on the copy machine. The server writes x = 2, but only the original gets it.",
+      async play(s) {
+        copy.state("bad"); copy.text("down ✕", BADT);
+        f.status("db copy is down", BADT);
+        await s.wait(500);
+        app.state("on");
+        await write(s, w1, orig, 2, x => { ov = x; });
+        copy.text("down ✕", BADT);
+        lit(w2, C.app);
+        await travel(s, fx, w2, C.app, 600, { to: 0.6 });
+        const p = Kit.pointAt(w2, 0.6);
+        pop(fx, p.x, p.y - 10, "✕ no answer", BADT);
+        lit(w2);
+        app.state("idle"); orig.state("idle");
+        await s.wait(400);
+      },
+    },
+    {
+      title: "swap",
+      text: "Then the original goes down and the copy comes back on. The copy still says x = 1.",
+      async play(s) {
+        orig.state("bad"); orig.text("down ✕", BADT);
+        await s.wait(400);
+        copy.state("on"); copy.text(`x = ${cv}`, WARNT);
+        lit(w2, C.rep);
+        await travel(s, fx, w2, C.rep, 600, { reverse: true });
+        pop(fx, 80, 80, "read x → 1", WARNT);
+        lit(w2);
+        f.status("the copy answers with x = 1", WARNT);
+        await s.wait(400);
+      },
+    },
+    {
+      title: "who to trust",
+      text: "The original comes back with x = 2. Now we are out of sync, and we don't know which database to trust.",
+      async play(s) {
+        orig.state("on"); orig.text(`x = ${ov}`, WARNT);
+        copy.text(`x = ${cv}`, WARNT);
+        f.big("2 ≠ 1", "out of sync", BADT);
+        f.status("we need a single point of truth", BADT);
+        await s.wait(700);
+      },
+    },
+  ];
+  f.steps(STEPS, { reset, enter });
+});
+
+/* ======================================================================
+   Figure: WAL shipped to read replicas
+   ====================================================================== */
+Kit.figure("wal", f => {
+  f.chrome({ tag: "write-ahead log · cdc", label: "read replicas from the WAL" });
+  const svg = f.svg(880, 300, { label: "Servers, a primary database with its WAL, and two read replicas", minWidth: 660 });
+  const wires = sv("g"), nodes = sv("g"), fx = sv("g");
+  svg.append(wires, nodes, fx);
+
+  const wWrite = wire(wires, "M140,150 H230");
+  const wShip = [wire(wires, "M460,130 C530,130 530,74 600,74", { dash: "4 5" }), wire(wires, "M460,170 C530,170 530,226 600,226", { dash: "4 5" })];
+  const wRead = [wire(wires, "M75,122 V40 H600"), wire(wires, "M75,178 V266 H600")];
+  const app = box(nodes, { x: 10, y: 122, w: 130, h: 56, label: "servers", sub: "writes · reads", color: C.app });
+  const prim = box(nodes, { x: 230, y: 90, w: 230, h: 120, top: 24, label: "primary", sub: "", color: C.db });
+  const reps = [14, 166].map((y, i) => box(nodes, { x: 600, y, w: 270, h: 120, top: 24, label: "replica " + (i + 1), sub: "", color: C.rep }));
+  const walLine = (x, y) => {
+    txt(nodes, x, y, "WAL", { size: 10, color: C.faint });
+    return [txt(nodes, x, y + 18, "", { size: 11 }), txt(nodes, x, y + 36, "", { size: 11 })];
+  };
+  const pWal = walLine(244, 150), rWal = reps.map(r => walLine(r.x + 14, r.y + 60));
+  const OLD = "#41 INSERT user 7", NEW = "#42 UPDATE balance = 80";
+  let reads = [0, 0];
+
+  const setWal = (lines, withNew, color) => {
+    lines[0].textContent = OLD; lines[0].style.fill = C.muted;
+    lines[1].textContent = withNew ? NEW : ""; lines[1].style.fill = color || C.wal;
+  };
+  const value = (b, val, color, extra) => b.text(`balance = ${val}${extra || ""}`, color || C.ink);
+  const count = n => f.big(`${n} / 3`, "databases with balance = 80");
+
+  /* before step 1: every database is at #41 with balance = 100 */
+  function reset() {
+    fx.replaceChildren();
+    reads = [0, 0];
+    [app, prim, ...reps].forEach(b => b.state("idle"));
+    value(prim, 100); reps.forEach(r => value(r, 100));
+    setWal(pWal, false); rWal.forEach(l => setWal(l, false));
+    count(0);
+    f.status("all databases are at WAL #41");
+  }
+  function enter() { fx.replaceChildren(); [wWrite, ...wShip, ...wRead].forEach(w => lit(w)); }
+
+  const STEPS = [
+    {
+      title: "write",
+      text: "A server sends an update. The primary plans the query, then writes it to its WAL on disk before it changes the data.",
+      async play(s) {
+        app.state("on"); lit(wWrite, C.app);
+        await travel(s, fx, wWrite, C.app, 500);
+        prim.state("on");
+        pop(fx, 345, 82, "plan · execute", C.soft);
+        await s.wait(700);
+        setWal(pWal, true);
+        pop(fx, 345, 200, "WAL on disk first", C.wal, { size: 10.5 });
+        await s.wait(500);
+        value(prim, 80); count(1);
+        lit(wWrite); app.state("idle");
+      },
+    },
+    {
+      title: "ship",
+      text: "Change data capture sends the new WAL entry over the network to both replicas.",
+      async play(s) {
+        f.status("shipping WAL #42");
+        await Promise.all(wShip.map(async (w, i) => {
+          lit(w, C.wal);
+          await travel(s, fx, w, C.wal, 700 + i * 120);
+          setWal(rWal[i], true);
+          reps[i].state("on");
+          lit(w);
+        }));
+        prim.state("idle");
+      },
+    },
+    {
+      title: "replay",
+      text: "The replicas don't plan the query again. They only execute the WAL, and get balance = 80.",
+      async play(s) {
+        for (const [i, r] of reps.entries()) {
+          await s.wait(350);
+          value(r, 80); r.state("ok"); count(i + 2);
+          pop(fx, r.cx, r.y - 4, "✓ replayed #42", OKT, { size: 10.5 });
+        }
+        f.status("all databases are at WAL #42", OKT);
+        await s.wait(400);
+      },
+    },
+    {
+      title: "reads",
+      text: "All writes go to the primary. Reads go to the replicas, so the primary keeps its time for the writes.",
+      async play(s) {
+        reps.forEach(r => r.state("idle"));
+        for (let k = 0; k < 6; k++) {
+          const i = k % 2;
+          lit(wRead[i], C.app);
+          await travel(s, fx, wRead[i], C.app, 380);
+          reads[i]++;
+          value(reps[i], 80, C.ink, ` · ${reads[i]} reads`);
+          lit(wRead[i]);
+        }
+        f.big("6 reads", "0 of them on the primary", OKT);
+        f.status("the single point of truth is the primary", OKT);
+      },
+    },
+  ];
+  f.steps(STEPS, { reset, enter });
+});
+
+/* ======================================================================
+   Figure: write backlog on one node vs two shards
+   ====================================================================== */
+Kit.figure("shard", f => {
+  f.chrome({ tag: "write amplification", label: "sharding the users table" });
+  const svg = f.svg(880, 250, { label: "Writes coming in at 15 per second to one database or to two shards", minWidth: 660 });
+  const wires = sv("g"), nodes = sv("g"), fx = sv("g");
+  svg.append(wires, nodes, fx);
+
+  const MAX = 30;
+  const src = box(nodes, { x: 10, y: 90, w: 160, h: 70, label: "writes", sub: "15 WAL / s", color: C.app });
+  function node(y, label, sub) {
+    const g = sv("g");
+    nodes.appendChild(g);
+    const b = box(g, { x: 420, y, w: 440, h: 96, top: 22, label, sub, color: C.db });
+    const q = Array.from({ length: MAX }, (_, i) => cell(g, 436 + (i % 15) * 27, y + 48 + Math.floor(i / 15) * 22, 21, 16));
+    return { g, b, q, backlog: 0 };
+  }
+  const one = node(77, "users db", "executes 10 WAL / s");
+  const shards = [node(14, "shard A", "users 1 – 500K · executes 10 WAL / s"), node(140, "shard B", "users 500K+1 – 1M · executes 10 WAL / s")];
+  const wOne = wire(wires, "M170,125 H420");
+  const wTwo = [wire(wires, "M170,115 C300,115 300,62 420,62"), wire(wires, "M170,135 C300,135 300,188 420,188")];
+
+  const mode = f.segmented([["one", "1 node"], ["two", "2 shards"]], "one", () => steps.redo(), { label: "Setup" });
+  const split = () => mode.value === "two";
+  const setQ = (n, k, color) => { n.backlog = k; n.q.forEach((c, i) => i < k ? c.fill(color || C.wal) : c.clear()); };
+  const total = () => split() ? shards[0].backlog + shards[1].backlog : one.backlog;
+  const count = (sec, color) => f.big(String(total()), `WAL waiting after ${sec} s`, color);
+
+  /* before step 1: nothing waiting */
+  function reset() {
+    fx.replaceChildren();
+    one.g.style.display = split() ? "none" : "";
+    shards.forEach(n => { n.g.style.display = split() ? "" : "none"; });
+    wOne.style.opacity = split() ? 0 : 1;
+    wTwo.forEach(w => { w.style.opacity = split() ? 1 : 0; });
+    [one, ...shards].forEach(n => { setQ(n, 0); n.b.state("idle"); });
+    src.state("idle");
+    count(0);
+    f.status(split() ? "the users table is split in two" : "one database for every write");
+  }
+  function enter() { fx.replaceChildren(); [wOne, ...wTwo].forEach(w => lit(w)); }
+
+  const STEPS = [
+    {
+      title: "the rate",
+      text: () => split()
+        ? "The users table is split: users 1 to 500K go to shard A, users 500K+1 to 1M go to shard B."
+        : "15 WAL per second come in. The database executes only 10 WAL per second.",
+      async play(s) {
+        src.state("on");
+        if (split()) shards.forEach(n => n.b.state("on")); else one.b.state("on");
+        await s.wait(900);
+      },
+    },
+    {
+      title: "6 seconds",
+      text: () => split()
+        ? "Each shard gets about 7.5 WAL per second and executes 10. Nothing is left over."
+        : "Every second, 5 WAL are left over. The backlog grows and never catches up.",
+      async play(s) {
+        const paths = split() ? wTwo : [wOne];
+        paths.forEach(w => lit(w, C.app));
+        for (let sec = 1; sec <= 6; sec++) {
+          await Promise.all(paths.flatMap(w => [0, 1, 2].map(k => s.wait(k * 120).then(() => travel(s, fx, w, C.app, 420)))));
+          if (!split()) setQ(one, one.backlog + 5);
+          count(sec, split() ? null : WARNT);
+          f.status(`${sec} s · ${split() ? "both shards keep up" : `${one.backlog} WAL waiting`}`, split() ? OKT : WARNT);
+          await s.wait(200);
+        }
+        paths.forEach(w => lit(w));
+      },
+    },
+    {
+      title: "result",
+      text: () => split()
+        ? "Together the shards execute 20 WAL per second. The cost: a join across both shards needs 2 network calls."
+        : "After 6 s the backlog is 30 WAL, and it grows by 5 every second.",
+      async play(s) {
+        if (split()) { shards.forEach(n => n.b.state("ok")); count(6, OKT); }
+        else { one.b.state("bad"); setQ(one, one.backlog, C.bad); count(6, BADT); }
+        await s.wait(700);
+      },
+    },
+  ];
+  const steps = f.steps(STEPS, { reset, enter });
+});
+
+/* ======================================================================
+   Figure: a replica out of sync, available vs consistent
+   ====================================================================== */
+Kit.figure("tradeoff", f => {
+  f.chrome({ tag: "trade-off", label: "available or consistent" });
+  const svg = f.svg(880, 300, { label: "A primary, pgpool and three read replicas, one of them out of sync", minWidth: 660 });
+  const wires = sv("g"), nodes = sv("g"), fx = sv("g");
+  svg.append(wires, nodes, fx);
+
+  const RY = i => 14 + i * 100, CAP = 10;
+  const wWal = [0, 1, 2].map(i => wire(wires, `M210,44 C400,44 420,${RY(i) + 24} 600,${RY(i) + 24}`, { dash: "4 5" }));
+  const wRead = [0, 1, 2].map(i => wire(wires, `M210,205 C400,205 420,${RY(i) + 50} 600,${RY(i) + 50}`));
+  const prim = box(nodes, { x: 10, y: 14, w: 200, h: 60, label: "primary", sub: "x = 2", color: C.db });
+  const lb = box(nodes, { x: 10, y: 170, w: 200, h: 70, label: "pgpool", sub: "25K reads / s", color: C.pool });
+  const reps = [0, 1, 2].map(i => {
+    const b = box(nodes, { x: 600, y: RY(i), w: 270, h: 72, top: 22, label: "replica " + (i + 1), sub: "", color: C.rep });
+    const bg = sv("rect", { x: 614, y: RY(i) + 50, width: 240, height: 8 });
+    bg.style.fill = C.line;
+    const bar = sv("rect", { x: 614, y: RY(i) + 50, width: 0, height: 8 });
+    bar.style.transition = "width .4s ease, fill .3s ease";
+    nodes.append(bg, bar);
+    return { b, bar, x: 1, load: 0 };
+  });
+
+  const mode = f.segmented([["avail", "stay available"], ["cons", "stay consistent"]], "avail", () => steps.redo(), { label: "Choice" });
+  const avail = () => mode.value === "avail";
+  const show = (r, color) => {
+    r.b.text(`x = ${r.x} · ${r.load ? r.load.toFixed(1).replace(".0", "") : 0}K / ${CAP}K reads`, color || C.ink);
+    r.bar.setAttribute("width", 240 * Math.min(1, r.load / CAP));
+    r.bar.style.fill = r.load >= CAP ? C.warn : C.rep;
+  };
+
+  /* before step 1: every replica is at x = 1, the primary already has x = 2 */
+  function reset() {
+    fx.replaceChildren();
+    prim.state("idle"); prim.text("x = 2"); lb.state("idle");
+    reps.forEach((r, i) => { r.x = 1; r.load = 0; r.b.state("idle"); r.b.label.textContent = "replica " + (i + 1); show(r); });
+    f.big("25K", "reads / s · 10K per replica");
+    f.status("the primary writes x = 2");
+  }
+  function enter() { fx.replaceChildren(); [...wWal, ...wRead].forEach(w => lit(w)); }
+
+  const STEPS = [
+    {
+      title: "missed WAL",
+      text: "The primary ships the WAL for x = 2. The network fails on the way to replica 3, so it still has x = 1.",
+      async play(s) {
+        prim.state("on");
+        await Promise.all(reps.map(async (r, i) => {
+          lit(wWal[i], C.wal);
+          if (i === 2) {
+            await travel(s, fx, wWal[i], C.wal, 750, { to: 0.6 });
+            const p = Kit.pointAt(wWal[i], 0.6);
+            pop(fx, p.x, p.y - 10, "✕ network failure", BADT);
+            r.b.state("bad"); show(r, BADT);
+          } else {
+            await travel(s, fx, wWal[i], C.wal, 750);
+            r.x = 2; show(r);
+          }
+          lit(wWal[i]);
+        }));
+        prim.state("idle");
+        f.status("replica 3 is out of sync", WARNT);
+        await s.wait(300);
+      },
+    },
+    {
+      get title() { return avail() ? "stay available" : "stay consistent"; },
+      text: () => avail()
+        ? "We keep replica 3 in the pool. The 25K reads spread as about 8.3K on each replica, so some users get x = 1: stale data."
+        : "We remove replica 3 from the pool. Replicas 1 and 2 take 10K each, at their fullest. 5K reads per second have nowhere to go.",
+      async play(s) {
+        lb.state("on");
+        const live = avail() ? [0, 1, 2] : [0, 1];
+        if (!avail()) { reps[2].b.state("dim"); f.status("replica 3 removed from the pool"); }
+        for (let k = 0; k < 6; k++) {
+          const i = live[k % live.length];
+          lit(wRead[i], C.app);
+          await travel(s, fx, wRead[i], C.app, 360);
+          lit(wRead[i]);
+        }
+        live.forEach(i => { reps[i].load = avail() ? 25 / 3 : CAP; show(reps[i], i === 2 ? BADT : null); });
+        if (avail()) {
+          pop(fx, 735, RY(2) - 4, "stale: x = 1", WARNT, { ms: 2200 });
+          f.big("8.3K", "reads / s get stale data", WARNT);
+          f.status("available, but not consistent", WARNT);
+        } else {
+          pop(fx, 110, 160, "✕ 5K / s · 503", BADT, { ms: 2200 });
+          f.big("5K", "reads / s dropped with a 503", BADT);
+          f.status("consistent, but not available", BADT);
+        }
+        await s.wait(600);
+      },
+    },
+    {
+      title: "primary down",
+      text: "The original database goes down too. Pgpool promotes replica 1, and it becomes the primary for the writes.",
+      async play(s) {
+        prim.state("bad"); prim.text("down ✕", BADT);
+        await s.wait(700);
+        reps[0].b.label.textContent = "replica 1 → primary";
+        reps[0].b.state("on");
+        pop(fx, 735, RY(0) - 2, "✓ promoted", OKT);
+        f.status("pgpool sends the writes to the new primary", OKT);
+        await s.wait(600);
+      },
+    },
+  ];
+  const steps = f.steps(STEPS, { reset, enter });
+});
+
+})(window.Kit);
+} catch (err) { console.error(err); }
+window.Kit.figuresReady();
+</script>
+</body>
+</html>
