@@ -17,16 +17,16 @@ When we want to scale a database, we have very much the same kind of problems. W
 
 What happens when we have multiple instances of our same backend doing database queries to our single instance? There might be a case that each pod is opening a new connection for every database query that it makes. In SQL databases, this becomes a bottleneck.
 
-For example, for every new connection, PostgreSQL spawns a new process. That is a process our operating system and our database management system have to overlook. This adds a performance overhead on our existing system, which is doing query planning, and after that all the joins and whatnot.
+For example, for every new connection, [PostgreSQL spawns a new process](https://www.postgresql.org/docs/current/connect-estab.html). That is a process our operating system and our database management system have to overlook. This adds a performance overhead on our existing system, which is doing query planning, and after that all the joins and whatnot.
 
-One of the simplest solutions is to add a connection pooler to our system in front of our database. Usually we keep the connection pooler on the same physical machine as our database instance. The database runs on port `5432` for example, and the pooler on `6432`.
+One of the simplest solutions is to add a connection pooler, like [PgBouncer](https://www.pgbouncer.org/), to our system in front of our database. Usually we keep the connection pooler on the same physical machine as our database instance. The database runs on port `5432` for example, and the pooler on `6432`.
 
 The connection pooler maintains, let's say, 5 or 10 connections with our database, a number that is manageable. Every request that we want to make to our database goes through this connection pool. In a sense the connection pooler acts like a load balancer. Not actually a load balancer, but it holds persistent connections with the database, and its only task is to let the servers connect and disconnect. Whatever performance overhead the constant new connection creation was putting onto the database is now absorbed by the connection pooler.
 
 ::figure pool Four backend pods send the same 12 queries. Without a pooler, every query opens a new connection and PostgreSQL spawns a process for it. With a pooler, the database keeps the same 5 connections.
 
 > [!TIP] Instagram, 2012–13
-> When Instagram was blowing up around 2012–13, they had a single PostgreSQL instance for millions of users, and they were vertically scaling it up. No sharding, no read replicas. Each process took 2 MB of their RAM, and their 64 GB of RAM was getting exhausted pretty quickly due to a lot of backend instances making connections. So they introduced a connection pool.
+> When Instagram was blowing up around 2012–13, they had a single PostgreSQL instance for millions of users, and they were vertically scaling it up. No sharding, no read replicas. Each process took 2 MB of their RAM, and their 64 GB of RAM was getting exhausted pretty quickly due to a lot of backend instances making connections. So they introduced a connection pool. ([What Powers Instagram](https://instagram-engineering.com/what-powers-instagram-hundreds-of-instances-dozens-of-technologies-adf2e22da2ad), [Handling Growth with Postgres](https://instagram-engineering.com/handling-growth-with-postgres-5-tips-from-instagram-d5d7e7ffdfcb))
 
 This is one of the simpler solutions, for a pretty early scale that we might have as our app grows.
 
@@ -48,7 +48,7 @@ So what if we put this data into something that sits in front of our database? O
 
 This cache can be replaced with anything that is relevant to our problem:
 
-- **Key-value data:** Redis, or Valkey. Valkey is a fully open-source fork of Redis, and a lot of companies are moving to it after the license change at Redis.
+- **Key-value data:** [Redis](https://redis.io/), or [Valkey](https://valkey.io/). Valkey is a [fully open-source fork of Redis](https://www.linuxfoundation.org/press/linux-foundation-launches-open-source-valkey-community), and a lot of companies are moving to it after the [license change at Redis](https://redis.io/blog/redis-adopts-dual-source-available-licensing/).
 - **Static files:** HTML, videos, audio, anything that we might put in an S3 bucket. It should be in a CDN.
 
 Till this point we are solving pretty much 90% of systems' problems.
@@ -63,7 +63,7 @@ Seems pretty simple, right? So what about writes? How will the DB copy stay in s
 
 ### Dual writes
 
-One solution is: whenever a write happens, we first write into the original database, then write it to the copy database again. This approach is called **dual write**, and it is used a lot in our industry. But usually when migrating from one set of technology to another, not when we are running the same instances.
+One solution is: whenever a write happens, we first write into the original database, then write it to the copy database again. This approach is called **dual write**, and it is used a lot in our industry. But usually when [migrating](https://stripe.com/blog/online-migrations) from one set of technology to another, not when we are running the same instances.
 
 We can do this, but it causes a few problems:
 
@@ -76,22 +76,22 @@ Whatever truth we have in our system should be told by only one machine: a **sin
 
 ### The write-ahead log
 
-Whenever a database wants to modify something, it first produces something called a **write-ahead log**, or WAL. The name itself suggests that it is a log: a book that is being written ahead of any modification that we want to do to the data. Insert, update, delete, any kind of operation that modifies data that already exists in our system: the database first writes it in the WAL.
+Whenever a database wants to modify something, it first produces something called a [**write-ahead log**](https://www.postgresql.org/docs/current/wal-intro.html), or WAL. The name itself suggests that it is a log: a book that is being written ahead of any modification that we want to do to the data. Insert, update, delete, any kind of operation that modifies data that already exists in our system: the database first writes it in the WAL.
 
 The database produces a ledger of what it wants to do, so that it can do a lot of performance optimizations like bulk writes. There is so much to learn about database internals here, like how B+ trees work, how data is stored in pages, and how the database can cache those pages and write to them in bulk so that it doesn't have to do disk I/O every time. Disk I/O is slow compared to RAM I/O. The WAL is stored to the disk before the actual execution of any modification query.
 
-The WAL has everything written in detail about what operation to do. If we give this book to the copy database, it can reproduce the original database from start to end. This is the simple formula behind **read replicas**: a replica of our database that we use for reads.
+The WAL has everything written in detail about what operation to do. If we give this book to the copy database, it can reproduce the original database from start to end. This is the simple formula behind [**read replicas**](https://www.postgresql.org/docs/current/warm-standby.html): a replica of our database that we use for reads.
 
 ::figure wal The primary plans and runs the update, and writes it to its WAL first. The WAL goes to both replicas, which only replay it. Reads then spread across the replicas.
 
-Whenever the original database produces WAL, we transfer it to the copy database. The copy doesn't have to do the computation that happened before the WAL was generated. It just executes the WAL: insert, update, delete, whatever operation the write-ahead log tells it to do. For this we usually use something called **CDC, change data capture**: whenever a data change happens, we capture that change and send it over the network to our copy database.
+Whenever the original database produces WAL, we transfer it to the copy database. The copy doesn't have to do the computation that happened before the WAL was generated. It just executes the WAL: insert, update, delete, whatever operation the write-ahead log tells it to do. For this we usually use something called **CDC, change data capture** (in Postgres, built on [logical decoding](https://www.postgresql.org/docs/current/logicaldecoding.html); [Debezium](https://debezium.io/) is a popular CDC tool): whenever a data change happens, we capture that change and send it over the network to our copy database.
 
 And we are not limited to one copy. We can send the WAL to another copy database as well. Now we have one primary database and two replicas. All the writes from our servers go to the primary, the primary generates the WAL, and we send the WAL to the replicated databases.
 
 > [!NOTE] Fun fact
-> OpenAI uses around 50 read replicas of PostgreSQL. A couple of months back they released an article about how they scaled PostgreSQL to that point.
+> OpenAI uses around 50 read replicas of PostgreSQL. A couple of months back they released [an article](https://openai.com/index/scaling-postgresql/) about how they scaled PostgreSQL to that point.
 
-There are a lot of database native extensions around read replication. For Postgres, there is `pglogical`, and there is **Pgpool**, which does pretty much everything: connection pooling, load balancing and high availability. Always refer to the latest documentation.
+There are a lot of database native extensions around read replication. For Postgres, there is [`pglogical`](https://github.com/2ndQuadrant/pglogical), and there is [**Pgpool**](https://www.pgpool.net/), which does pretty much everything: connection pooling, load balancing and high availability. Always refer to the latest documentation.
 
 ## When writes can't keep up
 
@@ -105,13 +105,13 @@ Take a users table with 1 million users. For our understanding we can split thes
 
 ### Partitioning vs sharding
 
-There is also something called **partitioning**. Partitioning divides a large database into small pieces within a single database. Sharding takes this a step further by dividing those chunks across independent database servers.
+There is also something called [**partitioning**](https://www.postgresql.org/docs/current/ddl-partitioning.html). Partitioning divides a large database into small pieces within a single database. Sharding takes this a step further by dividing those chunks across independent database servers.
 
 With partitioning, everything lives on the same node, the same physical server. But a single node can't do much more due to the physical constraints that it has to follow. Partitioning is a good way to solve this write amplification problem, but usually it is not enough when we reach that scale. Then we have to go to sharding, and scale horizontally, to have the peace of mind of having enough compute and enough physical resources.
 
-But sharding usually causes a lot of problems if not done correctly. Every database has a query planner. SQL is inherently declarative: we tell the database what we want, like `SELECT id, name FROM employee`, and how to execute that query is done by the query planner. If we have two separate nodes, we can't use the benefit of the query planner fully. If some of the data lives in the first shard and some in the second, we have to do two network calls to join the data. We have to do what the query planner does for us, and we have to maintain that system.
+But sharding usually causes a lot of problems if not done correctly. Every database has a query planner. SQL is inherently declarative: we tell the database what we want, like `SELECT id, name FROM employee`, and how to execute that query is done by the [query planner](https://www.postgresql.org/docs/current/planner-optimizer.html). If we have two separate nodes, we can't use the benefit of the query planner fully. If some of the data lives in the first shard and some in the second, we have to do two network calls to join the data. We have to do what the query planner does for us, and we have to maintain that system.
 
-Usually we don't shard on our own. There are managed services for this, like PlanetScale, with Neki for Postgres. They started with MySQL first, on top of **Vitess**, an open-source clustering system that was developed at YouTube. (This is not sponsored. I just love PlanetScale and use it.)
+Usually we don't shard on our own. There are managed services for this, like [PlanetScale](https://planetscale.com/), with [Neki](https://planetscale.com/blog/announcing-neki) for Postgres. They started with MySQL first, on top of [**Vitess**](https://vitess.io/), an open-source clustering system that was [developed at YouTube](https://vitess.io/docs/overview/history/). (This is not sponsored. I just love PlanetScale and use it.)
 
 ## The trade-offs
 
@@ -119,12 +119,12 @@ There are a lot of nuances for each case, and we have to slightly adjust our app
 
 The write-ahead log that is generated is deleted after some time. We can't keep the whole book from start to end. There is also the problem of network failure. Let's say one copy database fails to get the WAL that was generated by our original database, and only the other copy received it. That copy is now out of sync: it doesn't have the actual data that our original database has. In this scenario we have two options. We can either provide stale data to our users, or we can be unavailable to users and give a 503 or a 500 error.
 
-You might say: if a database is out of sync, remove it from our setup, from the pool that the reads come through. In the case of Postgres that will usually be Pgpool or PgBouncer. But let's say there are 25K requests per second, and each database can only handle 10K reads per second. The first one is at its fullest, the second one is at its fullest, and we have 5K requests that are pending. If we route those 5K to the remaining databases, they might also go down. So we either drop them and become unavailable, or we keep the out-of-sync database and stay available, but inconsistent: we serve stale data to the user because the copy DB doesn't have the updated value.
+You might say: if a database is out of sync, remove it from our setup, from the pool that the reads come through. In the case of Postgres that will usually be [Pgpool](https://www.pgpool.net/) or [PgBouncer](https://www.pgbouncer.org/). But let's say there are 25K requests per second, and each database can only handle 10K reads per second. The first one is at its fullest, the second one is at its fullest, and we have 5K requests that are pending. If we route those 5K to the remaining databases, they might also go down. So we either drop them and become unavailable, or we keep the out-of-sync database and stay available, but inconsistent: we serve stale data to the user because the copy DB doesn't have the updated value.
 
 ::figure tradeoff Three read databases, 10K reads per second each, and 25K reads per second coming in. One replica missed a WAL entry. Choose to stay available or to stay consistent, then watch the primary go down.
 
 This is the trade-off we make. We either stay highly available, or highly consistent: show only the latest data, and drop requests when we can't.
 
-There might also be the case where our original database itself goes down. Pgpool handles this as well: it promotes one of the copies, and that copy becomes our primary database for writes.
+There might also be the case where our original database itself goes down. Pgpool handles this as well: it [promotes one of the copies](https://www.pgpool.net/docs/latest/en/html/runtime-config-failover.html), and that copy becomes our primary database for writes.
 
 That is the thought process, with the trade-offs, that comes when we build databases for scale. Pretty much everything in computer science is very interesting, especially databases and operating systems. I hope you learned something new.
