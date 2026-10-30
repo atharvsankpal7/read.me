@@ -1,0 +1,4 @@
+/* Post-specific figure pieces. Colours come from template/figure.css. */
+
+/* the crash lab disables its primary button while a sequence runs; keep the label readable */
+.fig-btn.primary:disabled { color: var(--f-primary); }

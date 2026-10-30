@@ -1,0 +1,2419 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Checkpointing and Crash Recovery in Postgres | Atharv Sankpal</title>
+<meta name="description" content="How Postgres keeps a committed transaction safe without writing the table on every commit, and how a checkpoint decides how much WAL we replay after a crash. A small live figure for every idea, and one at the end you can crash yourself.">
+<meta name="author" content="Atharv Sankpal">
+<meta property="og:type" content="article"><meta property="og:title" content="Checkpointing and Crash Recovery in Postgres | Atharv Sankpal"><meta property="og:description" content="How Postgres keeps a committed transaction safe without writing the table on every commit, and how a checkpoint decides how much WAL we replay after a crash. A small live figure for every idea, and one at the end you can crash yourself."><meta property="article:published_time" content="2026-10-30">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#f8f7f4">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20fill%3D%22%230000cd%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%225%22%20fill%3D%22%23f8f7f4%22%2F%3E%3C%2Fsvg%3E">
+<script>(function(){var r=document.documentElement;if(!r.hasAttribute('data-force-theme'))r.setAttribute('data-theme','light')})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   Blog page shell. Inlined into every exported post and the blog index.
+   Tokens match the portfolio (build/styles.css) so posts feel like the same site:
+   one framed 57rem column (same as the portfolio's --page), hatched dividers, JetBrains Mono, blue links.
+   Figures span the full column, edge to edge with the frame lines.
+   ========================================================================== */
+:root {
+  color-scheme: light;
+  --bg: #f8f7f4;
+  --bg-2: #f1f0ec;
+  --fg: #080808;
+  --fg-soft: #27272a;
+  --muted: #71717a;
+  --faint: #a1a1aa;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --card: #fcfbf9;
+  --primary: #18181b;
+  --secondary: #f4f4f5;
+  --accent: #0000cd;
+  --accent-2: #00009a;
+  --accent-ink: #0000cd;
+  --accent-soft: rgba(0, 0, 205, 0.06);
+  --accent-line: rgba(0, 0, 205, 0.25);
+  --code-bg: #f4f4f5;
+  --ok: #15803d; --ok-soft: rgba(21, 128, 61, 0.08);
+  --warn: #b45309; --warn-soft: rgba(180, 83, 9, 0.08);
+  --bad: #dc2626; --bad-soft: rgba(220, 38, 38, 0.07);
+  --info: #2563eb; --info-soft: rgba(37, 99, 235, 0.07);
+  --shadow-sm: none;
+  --shadow-md: 0 4px 6px -1px #0000000f, 0 12px 28px -8px #00000024;
+  --shadow-lg: none;
+  --ease: cubic-bezier(0, 0, 0.2, 1);
+  --hatch: repeating-linear-gradient(-45deg, var(--border) 0 1px, transparent 1px 10px);
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* The site is set in mono throughout; --sans exists for the simulation kit. */
+  --sans: var(--mono);
+  --system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  --pad: 40px;
+  --page: 57rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 16px/1.5 var(--mono);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+::selection { background: #000; color: var(--bg); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+img, svg, video, canvas { max-width: 100%; }
+button { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.skip-link { position: absolute; left: 8px; top: -40px; z-index: 60; padding: 4px 8px; background: var(--bg); font-size: 14px; color: var(--fg); }
+.skip-link:focus { top: 8px; }
+
+/* ---------- frame ---------- */
+.page {
+  max-width: var(--page); min-height: 100vh; margin: 0 auto; padding: 80px 0 0;
+  display: flex; flex-direction: column; gap: 40px;
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  /* backwards, not both: a finished animation must not leave a transform behind, or .page would
+     become the containing block for position: fixed (the side toc) */
+  animation: reveal .7s var(--ease) backwards;
+}
+@keyframes reveal { from { opacity: 0; filter: blur(10px); transform: translateY(20px); } }
+.hatch { height: 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background-image: var(--hatch); }
+.post { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.back { padding: 0 var(--pad); }
+.back a {
+  display: inline-flex; align-items: center; gap: 4px; width: fit-content;
+  color: var(--muted); font-size: 14px; text-decoration: underline; text-underline-offset: 2px;
+}
+.back a:hover { color: var(--fg); }
+.back svg { width: 12px; height: 12px; }
+
+/* reading progress + back to top */
+.progress { position: fixed; top: 0; left: 0; z-index: 50; height: 4px; width: 0; background: var(--primary); }
+.to-top {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50;
+  width: 40px; height: 40px; border: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--primary); color: #fff;
+  opacity: 0; transform: translateY(40px); pointer-events: none;
+  transition: opacity .3s ease-in-out, transform .3s ease-in-out;
+}
+.to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+.to-top svg { width: 22px; height: 22px; }
+
+/* ---------- post header ---------- */
+.post-head { display: flex; flex-direction: column; gap: 16px; padding: 56px var(--pad); }
+.post-head h1 {
+  margin: 0; color: var(--accent); font-size: 36px; line-height: 1.11; font-weight: 600; letter-spacing: -0.025em; text-wrap: balance;
+}
+.post-head .meta { margin: 0; color: var(--muted); font-size: 14px; }
+.post-head .lede { margin: 0; color: var(--fg-soft); font-size: 14px; line-height: 1.7; max-width: 62ch; }
+.post-head .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.tag {
+  font-size: 11px; line-height: 20px; font-weight: 500; padding: 0 8px; border-radius: 999px;
+  color: var(--accent); background: var(--accent-soft);
+}
+.tag.live { display: inline-flex; align-items: center; gap: 6px; }
+.tag.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+
+/* ---------- table of contents ---------- */
+.toc { padding: var(--pad); border-bottom: 1px solid var(--border); }
+.toc h2 { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 700; letter-spacing: -0.025em; color: var(--fg); }
+.toc ol { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.toc a { display: block; padding-left: 16px; color: var(--muted); text-decoration: none; transition: color .15s ease; }
+.toc a::before { content: "•\00a0\00a0"; }
+.toc a.sub { padding-left: 32px; }
+.toc a.sub::before { content: "◦\00a0\00a0"; }
+.toc a:hover, .toc a.active { color: var(--fg); }
+
+/* wide screens: the toc moves into the empty gutter right of the column and follows the reader.
+   It needs ~230px of gutter, so it only happens from 1380px up; below that it stays under the title. */
+@media (min-width: 1380px) {
+  .toc {
+    position: fixed; z-index: 10; top: 96px;
+    left: calc(50% + var(--page) / 2 + 32px);
+    width: min(260px, (100vw - var(--page)) / 2 - 56px);
+    max-height: calc(100vh - 160px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+    padding: 0; border: 0;
+    transition: opacity .25s var(--ease), visibility .25s;
+  }
+  .toc h2 { font-size: 14px; line-height: 1.4; }
+  .toc ol { margin-top: 14px; gap: 0; border-left: 1px solid var(--border); }
+  .toc a { position: relative; padding: 5px 0 5px 14px; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; hyphens: auto; }
+  .toc a::before, .toc a.sub::before { content: none; }
+  .toc a.sub { padding-left: 26px; font-size: 12.5px; }
+  .toc a.active { color: var(--accent); }
+  .toc a.active::after { content: ""; position: absolute; left: -1px; top: 4px; bottom: 4px; width: 2px; background: var(--accent); }
+  /* the full simulation breaks out of the column, so the toc steps aside while it is on screen */
+  .toc.away { opacity: 0; visibility: hidden; }
+}
+
+/* ---------- prose ---------- */
+.article { padding: var(--pad); min-width: 0; }
+.prose { display: flex; flex-direction: column; gap: 24px; min-width: 0; text-align: justify; }
+.prose + .prose, .lab-wrap + .prose { margin-top: 24px; }
+.prose > * { margin: 0; }
+.prose p { line-height: 28px; text-wrap: pretty; }
+.prose strong { font-weight: 600; }
+.prose a { color: var(--accent); font-weight: 500; text-decoration: underline; text-underline-offset: 4px; }
+.prose a:hover { opacity: .8; }
+.prose h2, .prose h3, .prose h4 { position: relative; color: var(--fg); font-weight: 600; letter-spacing: -0.025em; text-align: left; text-wrap: balance; padding: 12px 0; }
+.prose h2 { font-size: 30px; line-height: 1.2; margin-top: 24px; }
+.prose h3 { font-size: 24px; line-height: 1.33; }
+.prose h4 { font-size: 20px; line-height: 1.4; }
+.anchor {
+  position: absolute; left: -1.1em; top: 50%; transform: translateY(-50%);
+  color: var(--muted); text-decoration: none !important; opacity: 0; font-weight: 400; transition: opacity .15s ease;
+}
+.prose :is(h2, h3, h4):hover .anchor, .anchor:focus-visible { opacity: 1; }
+.anchor:hover { color: var(--fg); }
+.prose ul, .prose ol { padding-left: 24px; color: var(--muted); }
+.prose ul { list-style: disc; }
+.prose li { line-height: 36px; }
+.prose li strong { color: var(--muted); }
+.prose li > p { margin: 0; }
+.prose hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+.prose blockquote { margin: 0; padding-left: 24px; border-left: 2px solid var(--border); color: var(--muted); font-style: italic; }
+.prose img { border: 1px solid var(--border); }
+.prose :not(pre) > code { font: 400 14px var(--mono); padding: 2px 4px; background: var(--code-bg); }
+.prose table { width: 100%; border-collapse: collapse; font-size: 14px; display: block; overflow-x: auto; text-align: left; }
+.prose th, .prose td { border: 1px solid var(--border); padding: 8px 16px; vertical-align: top; }
+.prose th { font-weight: 600; }
+
+/* code blocks */
+.code { position: relative; border: 1px solid var(--border); background: var(--code-bg); text-align: left; }
+.code-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 6px 8px 6px 16px; border-bottom: 1px solid var(--border);
+  font-size: 12px; color: var(--muted); text-transform: lowercase;
+}
+.copy {
+  border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+  font-size: 12px; padding: 4px 10px; cursor: pointer; transition: color .15s ease, border-color .15s ease;
+}
+.copy:hover { color: var(--fg); border-color: var(--primary); }
+.copy.done { color: var(--ok); }
+.code pre { margin: 0; padding: 16px; overflow-x: auto; font: 400 14px/1.7 var(--mono); tab-size: 2; }
+.code pre code { font: inherit; }
+
+/* callouts: > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION] / [!TRY] */
+.prose .callout {
+  --c: var(--info); --c-soft: var(--info-soft);
+  border-left: 4px solid var(--c); background: var(--c-soft); text-align: left;
+  padding: 16px; display: grid; grid-template-columns: 20px 1fr; gap: 4px 12px;
+}
+.prose .callout-icon { grid-row: span 2; color: var(--c); padding-top: 2px; }
+.prose .callout-icon svg { width: 18px; height: 18px; display: block; }
+.prose .callout-title { font-weight: 600; color: var(--c); font-size: 14px; }
+.prose .callout-body > * + * { margin-top: 8px; }
+.prose .callout-body p { font-size: 15px; line-height: 26px; margin: 0; }
+.prose .callout.tip, .prose .callout.try { --c: var(--ok); --c-soft: var(--ok-soft); }
+.prose .callout.important { --c: var(--accent); --c-soft: var(--accent-soft); }
+.prose .callout.warning { --c: var(--warn); --c-soft: var(--warn-soft); }
+.prose .callout.caution { --c: var(--bad); --c-soft: var(--bad-soft); }
+
+/* ---------- simulation lab (breaks out of the column, it needs the room) ---------- */
+.lab-wrap {
+  position: relative;
+  width: min(1440px, 100vw - 32px);
+  left: 50%; transform: translateX(-50%);
+  margin: 40px 0 16px;
+}
+.lab { background: var(--bg); border: 1px solid var(--border-strong); overflow: hidden; }
+.lab-head {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 16px 14px 20px; border-bottom: 1px solid var(--border);
+}
+.lab-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.lab-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.lab-title { font-size: 16px; font-weight: 600; letter-spacing: -0.025em; color: var(--fg); margin: 4px 0 0; line-height: 1.3; }
+.lab-hint { color: var(--muted); font-size: 13px; line-height: 1.45; margin: 2px 0 0; }
+.lab-head .grow { flex: 1; min-width: 220px; }
+.lab-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 36px; height: 36px; display: inline-grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--primary); background: transparent; color: var(--primary); transition: background-color .15s ease;
+}
+.icon-btn:hover { background: var(--secondary); }
+.icon-btn svg { width: 16px; height: 16px; }
+.lab-body { padding: 16px; background: var(--bg-2); }
+.lab:fullscreen { border: 0; overflow: auto; background: var(--bg-2); }
+.lab:fullscreen .lab-body { min-height: calc(100vh - 70px); }
+.lab:-webkit-full-screen { width: 100%; height: 100%; overflow: auto; }
+.lab .fs-exit { display: none; }
+.lab:fullscreen .fs-exit, .lab.fake-fs .fs-exit { display: block; }
+.lab:fullscreen .fs-enter, .lab.fake-fs .fs-enter { display: none; }
+.lab.fake-fs { position: fixed; inset: 0; z-index: 100; border: 0; overflow: auto; background: var(--bg-2); }
+.lab-error {
+  margin: 0; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
+  background: var(--bad-soft); color: var(--bad); font: 13px/1.55 var(--mono); white-space: pre-wrap;
+}
+
+/* ---------- previous / next ---------- */
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 32px 16px 80px; border-top: 1px solid var(--border); }
+.pager a { flex: 1; min-width: 0; color: var(--fg); text-decoration: none; }
+.pager a.next { text-align: right; }
+.pager .dir { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+.pager a.next .dir { justify-content: flex-end; }
+.pager a:hover .dir { color: var(--fg); }
+.pager .dir svg { width: 16px; height: 16px; }
+.pager .title { margin: 4px 0 0; font-size: 18px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- blog index ---------- */
+.index-list { list-style: none; margin: 0; padding: 0 var(--pad); display: flex; flex-direction: column; gap: 20px; }
+.index-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.post-link {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  color: var(--accent); font-weight: 500;
+  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 4px;
+  transition: text-decoration-color .2s var(--ease), opacity .2s var(--ease);
+}
+.post-link:hover { text-decoration-color: var(--accent); opacity: .9; }
+.post-link .arrow { display: inline-flex; flex: none; transition: transform .2s var(--ease); }
+.post-link:hover .arrow { transform: translate(2px, -2px); }
+.post-link svg { width: 18px; height: 18px; }
+.index-list .date { margin: 0; opacity: .8; white-space: nowrap; }
+.index-end { height: 80px; }
+
+/* writing preview popover (index page) */
+.popover {
+  position: fixed; z-index: 50; width: min(22rem, 100vw - 2rem); padding: 16px 18px 18px;
+  background: var(--bg); border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); border-radius: 10px;
+  box-shadow: var(--shadow-md); font: 15px/1.55 var(--system);
+  pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .15s var(--ease), transform .15s var(--ease);
+}
+.popover.show { opacity: 1; transform: none; }
+.popover h3 { margin: 0 0 8px; color: var(--accent); font-size: 17px; font-weight: 600; line-height: 1.35; letter-spacing: -0.02em; }
+.popover .meta { margin: 0 0 12px; font-size: 12px; color: color-mix(in srgb, var(--fg) 55%, transparent); }
+.popover .body { margin: 0; font-size: 14px; line-height: 1.6; color: color-mix(in srgb, var(--fg) 82%, transparent); }
+
+@media (max-width: 639px) {
+  :root { --pad: 16px; }
+  .page { padding-top: 40px; }
+  .post-head { padding: 40px var(--pad); }
+  .post-head h1 { font-size: 24px; line-height: 1.33; }
+  .prose { text-align: left; text-wrap: pretty; }
+  .prose h2 { font-size: 20px; }
+  .prose h3 { font-size: 18px; }
+  .prose h4 { font-size: 16px; }
+  .toc a, .toc h2 { font-size: 14px; }
+  .toc a { padding-left: 8px; }
+  .toc a.sub { padding-left: 16px; }
+  .lab-body { padding: 10px; }
+  .lab-head { padding: 12px 12px 12px 14px; }
+  .anchor { display: none; }
+  .index-list li { flex-direction: column; }
+  .index-list .date { font-size: 14px; }
+  .popover { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  /* only the page intro respects reduced motion; figure animations carry meaning, so they always run */
+  .page { animation: none; }
+}
+@media print {
+  .progress, .to-top, .lab-wrap, .pager, .back { display: none !important; }
+  .page { border: 0; }
+}
+
+/* Syntax colours for highlight.js output, driven by theme tokens. */
+:root {
+  --hl-kw: #7c3aed; --hl-str: #15803d; --hl-num: #b45309; --hl-fn: #2563eb;
+  --hl-com: #9ca3af; --hl-type: #0e7490; --hl-attr: #be185d; --hl-meta: #6b7280;
+}
+:root[data-theme="dark"] {
+  --hl-kw: #c4b5fd; --hl-str: #86efac; --hl-num: #fcd34d; --hl-fn: #93c5fd;
+  --hl-com: #6b7280; --hl-type: #67e8f9; --hl-attr: #f9a8d4; --hl-meta: #9ca3af;
+}
+.hljs { color: var(--fg); }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-literal, .hljs-doctag { color: var(--hl-kw); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-template-tag, .hljs-template-variable { color: var(--hl-str); }
+.hljs-number, .hljs-symbol, .hljs-bullet { color: var(--hl-num); }
+.hljs-title, .hljs-title.function_, .hljs-section { color: var(--hl-fn); }
+.hljs-comment, .hljs-quote { color: var(--hl-com); font-style: italic; }
+.hljs-type, .hljs-class .hljs-title, .hljs-title.class_ { color: var(--hl-type); }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-property, .hljs-params { color: var(--hl-attr); }
+.hljs-meta, .hljs-selector-class, .hljs-selector-id { color: var(--hl-meta); }
+.hljs-deletion { color: var(--bad); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* ==========================================================================
+   Figures: small animated panels placed through the article with `::figure <id> <caption>`.
+   They use the portfolio's own language: cream card, zinc frame lines, hatched dividers,
+   square corners, JetBrains Mono, blue (#0000cd) as the only accent, outlined buttons.
+   The component colours below are only for telling parts of a diagram apart (Kafka vs
+   Postgres vs consumers). They were checked for lightness band, colour-blind separation
+   and contrast against --f-bg.
+   figures.js reads every colour from these variables, so this file is the one place to change them.
+   ========================================================================== */
+.fig {
+  /* site theme */
+  --f-bg: var(--card, #fcfbf9);
+  --f-bg-2: var(--bg, #f8f7f4);
+  --f-line: var(--border, #e4e4e7);
+  --f-line-2: var(--border-strong, #d4d4d8);
+  --f-ink: var(--fg, #080808);
+  --f-soft: var(--fg-soft, #27272a);
+  --f-muted: var(--muted, #71717a);
+  --f-faint: var(--faint, #a1a1aa);
+  --f-accent: var(--accent, #0000cd);
+  --f-primary: var(--primary, #18181b);
+  --f-hover: var(--secondary, #f4f4f5);
+  /* status, always shown with a glyph or a word next to it (site tokens) */
+  --f-ok: var(--ok, #15803d);
+  --f-bad: var(--bad, #dc2626);
+  --f-warn: var(--warn, #b45309);
+  /* descriptive colours for diagram parts, same roles as the simulation */
+  --f-prod: #0d9488;
+  --f-kafka: #5b4fe0;
+  --f-cons: #a16207;
+  --f-dest: #c026a3;
+  --f-pg: #1d6fe0;
+  --f-retry: #c2410c;
+  --f-cp: #71717a;
+  position: relative;
+  text-align: left;
+}
+/* hex values for figures.js (it mixes in alpha, so it needs plain hex, not var() chains) */
+.fig {
+  --fx-bg: #fcfbf9; --fx-bg-2: #f8f7f4; --fx-line: #e4e4e7; --fx-line-2: #d4d4d8;
+  --fx-ink: #080808; --fx-soft: #27272a; --fx-muted: #71717a; --fx-faint: #a1a1aa; --fx-accent: #0000cd;
+  --fx-ok: #15803d; --fx-bad: #dc2626; --fx-warn: #b45309;
+  --fx-prod: #0d9488; --fx-kafka: #5b4fe0; --fx-cons: #a16207; --fx-dest: #c026a3; --fx-pg: #1d6fe0; --fx-retry: #c2410c; --fx-cp: #71717a;
+}
+/* full column width: the panel's sides sit on the page's frame lines */
+.prose > .fig { margin: 16px calc(-1 * var(--pad)); }
+
+.fig-panel {
+  background: var(--f-bg);
+  color: var(--f-soft);
+  border-top: 1px solid var(--f-line);
+  border-bottom: 1px solid var(--f-line);
+  overflow: hidden;
+  font: 400 13px/1.5 var(--mono);
+  font-variant-numeric: tabular-nums;
+  overflow-anchor: none;
+}
+.fig-fallback { margin: 0; padding: 48px 24px; color: var(--f-muted); text-align: center; background-image: var(--hatch); }
+.fig-error { margin: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--f-bad) 30%, transparent); color: var(--f-bad); background: var(--bad-soft, #dc262612); white-space: pre-wrap; font: 12px/1.5 var(--mono); }
+
+/* header row: tag + label on the left, live status on the right */
+.fig-head {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px;
+  padding: 16px 24px 2px;
+}
+.fig-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+.fig-pill {
+  color: var(--f-accent); background: var(--accent-soft, #0000cd0f); border-radius: 999px;
+  padding: 0 8px; font-size: 11px; line-height: 20px; font-weight: 500; white-space: nowrap;
+}
+.fig-label { color: var(--f-muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.fig-status { color: var(--f-muted); font-size: 12.5px; transition: color .3s ease; }
+
+/* big readout + controls */
+.fig-bar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 24px;
+  padding: 8px 24px 16px;
+}
+.fig-big { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.fig-big b { color: var(--f-ink); font-size: 30px; line-height: 1.1; font-weight: 600; letter-spacing: -0.025em; transition: color .3s ease; white-space: nowrap; }
+.fig-big span { color: var(--f-muted); font-size: 13px; }
+.fig-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* buttons follow the portfolio .btn: outlined in zinc-900, zinc-100 on hover */
+.fig-btn {
+  cursor: pointer; border: 1px solid var(--f-primary); background: transparent; color: var(--f-primary);
+  padding: 6px 12px; font: 500 12.5px/1.2 var(--mono); white-space: nowrap;
+  transition: background-color .15s var(--ease, ease), color .15s ease, border-color .15s ease;
+}
+.fig-btn:hover { background: var(--f-hover); }
+.fig-btn.primary { background: var(--f-primary); color: var(--f-bg); }
+.fig-btn.primary:hover { background: #3f3f46; border-color: #3f3f46; }
+.fig-btn:disabled { opacity: .35; cursor: not-allowed; background: transparent; }
+.fig-btn:focus-visible, .fig-seg button:focus-visible, .fig .fx-steps button:focus-visible { outline: 2px solid var(--f-accent); outline-offset: 2px; }
+.fig-seg { display: inline-flex; border: 1px solid var(--f-primary); }
+.fig-seg button {
+  cursor: pointer; border: 0; background: transparent; color: var(--f-muted); padding: 6px 11px;
+  font: 500 12.5px/1.2 var(--mono); white-space: nowrap; transition: background-color .15s ease, color .15s ease;
+}
+.fig-seg button + button { border-left: 1px solid var(--f-primary); }
+.fig-seg button:hover { color: var(--f-ink); background: var(--f-hover); }
+.fig-seg button.on { background: var(--accent-soft, #0000cd0f); color: var(--f-accent); box-shadow: inset 0 -2px 0 var(--f-accent); }
+
+/* stage: SVG scenes scale with the panel
+   and scroll sideways on phones instead of shrinking text */
+.fig-stage {
+  position: relative; padding: 18px 24px 18px; overflow-x: auto; overscroll-behavior-x: contain;
+  background: var(--f-bg-2);
+  scrollbar-width: thin; scrollbar-color: var(--f-line-2) transparent;
+}
+.fig-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.fig-svg text { font-family: var(--mono); fill: var(--f-soft); }
+.fig-foot:empty { display: none; }
+.fig-foot {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+  padding: 12px 24px 14px; border-top: 1px solid var(--f-line); color: var(--f-muted); font-size: 12px;
+}
+.fig-key { display: inline-flex; align-items: center; gap: 7px; }
+.fig-key i { width: 10px; height: 10px; display: inline-block; }
+.fig-note { color: var(--f-faint); }
+/* hatched strip between the controls and the stage, same as the page dividers */
+.fig-panel .fig-bar { border-bottom: 1px solid var(--f-line); position: relative; margin-bottom: 12px; }
+.fig-panel .fig-bar::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 12px;
+  border-bottom: 1px solid var(--f-line); background-image: var(--hatch);
+}
+
+/* caption sits back inside the text column */
+.fig figcaption {
+  margin: 12px var(--pad) 0; color: var(--muted); font-size: 13px; line-height: 1.6; text-wrap: pretty;
+}
+.fig figcaption code { font-size: 12px; }
+.fig .fig-num { color: var(--fg); font-weight: 600; text-decoration: none; margin-right: 6px; }
+.fig .fig-num:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 639px) {
+  .prose > .fig { margin: 8px calc(-1 * var(--pad)); }
+  .fig figcaption { margin: 10px var(--pad) 0; }
+  .fig-head { padding: 14px 16px 2px; }
+  .fig-bar { padding: 8px 16px 12px; }
+  .fig-big b { font-size: 24px; }
+  .fig-stage { padding: 14px 16px 14px; }
+  .fig-stage.fig-wide::before { content: "swipe to see the whole figure →"; position: sticky; left: 0; display: block; margin-bottom: 6px; color: var(--f-faint); font-size: 11px; }
+  .fig-foot { padding: 10px 16px 14px; }
+  .fig-narr { padding: 10px 16px 12px; }
+}
+@media print {
+  .fig-actions { display: none; }
+}
+
+/* ---------- reusable bits for figures.js ---------- */
+/* moving dashes on an active wire */
+.fig .fx-flow { stroke-dasharray: 5 6; animation: fx-dash .7s linear infinite; }
+@keyframes fx-dash { to { stroke-dashoffset: -11; } }
+/* a label that rises and fades out */
+.fig .fx-pop { animation: fx-pop 1.6s cubic-bezier(.2, .8, .2, 1) both; transform-box: fill-box; paint-order: stroke; stroke: var(--f-bg-2); stroke-width: 4px; stroke-linejoin: round; }
+@keyframes fx-pop {
+  0% { opacity: 0; transform: translateY(5px); }
+  12% { opacity: 1; transform: none; }
+  78% { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 0; transform: translateY(-7px); }
+}
+/* narration line + step markers in the footer */
+.fig .fx-say { flex: 1 1 320px; color: var(--f-soft); font-size: 12.5px; line-height: 1.65; min-height: 3.3em; }
+.fig .fx-say > b:first-child { color: var(--f-ink); font-weight: 600; margin-right: 4px; }
+.fig .fx-steps { display: inline-flex; gap: 6px; }
+.fig .fx-steps button { width: 22px; height: 6px; padding: 0; border: 1px solid var(--f-line-2); background: transparent; cursor: pointer; transition: background-color .25s ease, width .25s ease, border-color .25s ease; }
+.fig .fx-steps button.done { background: var(--f-line-2); }
+.fig .fx-steps button.on { width: 34px; background: var(--f-accent); border-color: var(--f-accent); }
+.fig .fx-steps button:hover { border-color: var(--f-primary); }
+/* f.steps(): dots + narration between the stage and the foot; the play / pause button keeps its width */
+.fig-narr { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 18px; padding: 12px 24px 14px; border-top: 1px solid var(--f-line); }
+.fig-narr .fx-steps { margin-top: 7px; }
+.fig .fx-player { display: inline-flex; gap: 8px; }
+.fig-btn.fx-toggle { min-width: 11ch; }
+/* hover tooltip, like the portfolio's writing preview popover */
+.fig .fx-tip {
+  position: absolute; z-index: 2; pointer-events: none; min-width: 150px;
+  padding: 8px 11px; border: 1px solid color-mix(in srgb, var(--f-ink) 12%, transparent); border-radius: 10px; background: var(--f-bg-2);
+  color: var(--f-soft); font-size: 11.5px; line-height: 1.45; box-shadow: 0 4px 6px -1px #0000000f, 0 12px 28px -8px #00000024;
+}
+.fig .fx-tip b { color: var(--f-accent); font-size: 13px; }
+.fig .fx-tip span { color: var(--f-muted); }
+/* range slider in the actions row */
+.fig .fx-range { display: inline-flex; align-items: center; gap: 10px; color: var(--f-muted); font-size: 12px; }
+.fig .fx-range input { width: 150px; accent-color: var(--f-accent); }
+.fig .fx-range-v { min-width: 11ch; color: var(--f-soft); }
+/* text inside the panel never inherits the article's prose rhythm */
+.fig-panel p { margin: 0; line-height: 1.6; text-align: left; }
+/* SVG text that sits on top of busy fills */
+.fig .fx-halo { paint-order: stroke; stroke: var(--f-bg-2); stroke-width: 3.5px; stroke-linejoin: round; }
+
+/* ---------- text selection ----------
+   The page's ::selection (black background) only recolours HTML text; SVG labels keep their dark fill and
+   turned into black blocks. Diagram labels and controls aren't meant to be copied, so they don't select;
+   readable text (narration, tables, captions) selects with a light blue tint instead. */
+.fig-svg, .fig-svg *, .fig-head, .fig-bar, .fig-btn, .fig-seg, .fig .fx-steps, .fig-key, .fig .fx-tip {
+  -webkit-user-select: none; user-select: none;
+}
+.fig-panel ::selection, .fig figcaption ::selection, .fig figcaption::selection { background: rgba(0, 0, 205, 0.16); color: var(--f-ink); }
+
+/* Post-specific figure pieces. Colours come from template/figure.css. */
+
+/* the crash lab disables its primary button while a sequence runs; keep the label readable */
+.fig-btn.primary:disabled { color: var(--f-primary); }
+
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<div class="progress" aria-hidden="true"></div>
+<article class="page">
+<div class="back"><a href="../"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17V7h10"/><path d="M17 17 7 7"/></svg> Home</a></div>
+<div class="post">
+<div class="hatch" aria-hidden="true"></div>
+<header class="post-head">
+  <h1>Checkpointing and Crash Recovery in Postgres</h1>
+  <p class="meta"><time datetime="2026-10-30">Oct 30, 2026</time> · 9 min read · By Atharv Sankpal</p>
+  <p class="lede">How Postgres keeps a committed transaction safe without writing the table on every commit, and how a checkpoint decides how much WAL we replay after a crash. A small live figure for every idea, and one at the end you can crash yourself.</p>
+  <ul class="tags"><li class="tag live">Interactive</li><li class="tag">PostgreSQL</li><li class="tag">Databases</li><li class="tag">Reliability</li></ul>
+</header>
+<div class="hatch" aria-hidden="true"></div>
+<nav class="toc" aria-label="Table of contents"><h2>Table of Contents</h2><ol><li><a href="#two-places-to-write-to">Two places to write to</a></li><li><a href="#when-a-transaction-comes">When a transaction comes</a></li><li><a href="#what-if-the-system-fails">What if the system fails?</a></li><li><a href="#so-what-is-a-checkpoint">So what is a checkpoint?</a></li><li><a href="#crash-recovery">Crash recovery</a></li><li><a href="#full-page-writes">Full page writes</a></li><li><a href="#how-often-should-we-checkpoint">How often should we checkpoint?</a></li><li><a href="#what-we-guarantee-and-what-we-dont">What we guarantee (and what we don&#39;t)</a></li><li><a href="#now-crash-it-yourself">Now crash it yourself</a></li></ol></nav>
+<div class="article" id="main-content">
+<div class="prose">
+<h2 id="two-places-to-write-to"><a class="anchor" href="#two-places-to-write-to" aria-label="Link to this section">#</a>Two places to write to</h2>
+<p>Postgres has 2 places to write to:</p>
+<ol>
+<li><strong>the WAL</strong> - the <a href="https://www.postgresql.org/docs/current/wal-intro.html" target="_blank" rel="noopener">write-ahead log</a>. it is in memory (the WAL buffers) as well as on the SSD (the <code>pg_wal/</code> folder, in 16 MB files called segments).</li>
+<li><strong>the actual table</strong> - the table files on the SSD. tables are stored in <a href="https://www.postgresql.org/docs/current/storage-page-layout.html" target="_blank" rel="noopener">8 KB pages</a>, and when a page is in memory it lives in the <a href="https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS" target="_blank" rel="noopener"><strong>shared buffers</strong></a>. a page in shared buffers that has changes which aren&#39;t on the SSD yet is called a <strong>dirty page</strong>.</li>
+</ol>
+<p>Why two? Writing to memory is fast, writing to the SSD is slow. One transaction can touch pages all over a table, and writing each of those 8 KB pages on every commit means a lot of random writes. The WAL is one file that we only append to, so writing it is sequential. (We discussed why sequential is so much faster in <a href="./secondary-storage-batching.html#why-random-access-is-expensive">Secondary Storages</a>.)</p>
+<p>So on commit Postgres writes only the WAL to the SSD, and writes the pages later, in bulk. That&#39;s the whole trick. The rest of this post is about what &quot;later&quot; means, and what happens when the machine dies before &quot;later&quot; comes.</p>
+<h2 id="when-a-transaction-comes"><a class="anchor" href="#when-a-transaction-comes" aria-label="Link to this section">#</a>When a transaction comes</h2>
+<ol>
+<li>the shared buffers might already have the page the transaction needs. if not, Postgres reads the page from the table file into shared buffers first.</li>
+<li>Postgres applies the change to the page in shared buffers. the table file on the SSD still has the old data, so this page is now a dirty page.</li>
+<li>the same change is written as a WAL record into the WAL buffers in memory. every record gets an <strong>LSN</strong> (log sequence number), which is its position in the WAL. the page remembers the LSN of the last record that changed it.</li>
+<li>on <code>COMMIT</code>, Postgres adds a commit record and flushes the WAL buffers to the SSD (with <code>fsync</code>), up to and including that commit record.</li>
+<li>only after the flush does the client get <code>COMMIT</code> back. <strong>when the WAL is written on the SSD, our transaction is safe.</strong></li>
+<li>the dirty page goes to the table file later. this can happen asynchronously, whenever, because the WAL already has the change.</li>
+</ol>
+<p>Here is one update going through all of it. Step through it, or flip the page to see one that isn&#39;t in shared buffers yet.</p>
+<figure class="fig" id="figure-write" data-figure="write">
+<div class="fig-panel"><p class="fig-fallback">Figure 1 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-write">Figure 1</a> One <code>UPDATE</code> from the client to the SSD. The client gets <code>COMMIT</code> as soon as the WAL is on the SSD. The table page goes to the SSD later.</figcaption>
+</figure><p>The pages are written by the <a href="https://www.postgresql.org/docs/current/runtime-config-resource.html#RUNTIME-CONFIG-RESOURCE-BACKGROUND-WRITER" target="_blank" rel="noopener">background writer</a> and the checkpointer (and sometimes by a backend itself, when it needs a free buffer). They don&#39;t read the WAL to do this. The page in shared buffers already has the change, so they just write that page to the table file. The WAL is only read back when something goes wrong, or by replicas (as we discussed in <a href="./database-scaling.html#the-write-ahead-log">Optimizations Around Database</a>).</p>
+<aside class="callout important" role="note"><span class="callout-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v4M12 14h.01"/></svg></span><div class="callout-title">WAL before data</div><div class="callout-body"><p>A dirty page is only written to the table file after the WAL up to that page&#39;s LSN is on the SSD. If it isn&#39;t there yet, Postgres flushes the WAL first. So the table file never has a change that the WAL doesn&#39;t know about. This is where the name write-ahead comes from.</p>
+</div></aside>
+<h2 id="what-if-the-system-fails"><a class="anchor" href="#what-if-the-system-fails" aria-label="Link to this section">#</a>What if the system fails?</h2>
+<p>There are two points where a crash matters:</p>
+<ul>
+<li><strong>after the WAL write, before the table write</strong> - the transaction is committed and the client already got <code>COMMIT</code>. the change is only in the WAL on the SSD, the table file still has the old page. on restart Postgres replays the WAL and the page gets the change again. replaying the WAL makes our state happy. this is <strong>durability</strong>.</li>
+<li><strong>before the WAL write (so also before the table write)</strong> - the commit is not successful. the client never got <code>COMMIT</code>, it got a connection error. there is no commit record for this transaction on the SSD, so on restart it is treated as aborted. since we told the client the transaction failed, and none of it is visible, we have <strong>atomicity</strong> in our system.</li>
+</ul>
+<figure class="fig" id="figure-crash" data-figure="crash">
+<div class="fig-panel"><p class="fig-fallback">Figure 2 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-crash">Figure 2</a> The same transaction, and the machine dies at two different points. Before the WAL flush, the client gets an error and nothing of the transaction survives. After the WAL flush, the change survives in the WAL and replay puts it back.</figcaption>
+</figure><aside class="callout note" role="note"><span class="callout-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span><div class="callout-title">No undo log</div><div class="callout-body"><p>Postgres doesn&#39;t have an undo log. Records of an unfinished transaction can still reach the SSD: a flush writes everything before the commit record, including other transactions&#39; records, and the WAL writer also flushes in the background. Replay applies those records too. But every row version has the id of the transaction that created it (<code>xmin</code>), and a transaction with no commit record is aborted, so those rows are invisible to every query. <a href="https://www.postgresql.org/docs/current/routine-vacuuming.html" target="_blank" rel="noopener"><code>VACUUM</code></a> cleans them up later.</p>
+</div></aside>
+<h2 id="so-what-is-a-checkpoint"><a class="anchor" href="#so-what-is-a-checkpoint" aria-label="Link to this section">#</a>So what is a <a href="https://www.postgresql.org/docs/current/wal-configuration.html" target="_blank" rel="noopener">checkpoint</a>?</h2>
+
+<p>It is a point in the WAL where every change before it is guaranteed to be in the table files. The checkpointer process does it like this:</p>
+<ol>
+<li>it notes the current WAL position. this is the <strong>redo point</strong>.</li>
+<li>it writes every page that was dirty at that moment to the table files, then <code>fsync</code>s them.</li>
+<li>it writes a checkpoint record to the WAL, which points to the redo point.</li>
+<li>it updates <a href="https://www.postgresql.org/docs/current/app-pgcontroldata.html" target="_blank" rel="noopener"><code>pg_control</code></a> (a small file in the <code>global/</code> folder) with the location of this checkpoint record.</li>
+<li>WAL before the redo point isn&#39;t needed for crash recovery anymore, so those segments are recycled (renamed and reused for new WAL), unless a replica or the archiver still needs them.</li>
+</ol>
+<p>Transactions don&#39;t stop during a checkpoint. Their changes are after the redo point, so replay covers them. And the pages aren&#39;t written all at once: the checkpointer spreads the writes over <a href="https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-CHECKPOINT-COMPLETION-TARGET" target="_blank" rel="noopener"><code>checkpoint_completion_target</code></a> (90%) of the time until the next checkpoint, so it doesn&#39;t burst the SSD with I/O.</p>
+<figure class="fig" id="figure-checkpoint" data-figure="checkpoint">
+<div class="fig-panel"><p class="fig-fallback">Figure 3 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-checkpoint">Figure 3</a> Dirty pages pile up in shared buffers and the WAL grows. The checkpoint marks a redo point, writes the pages that were dirty at that moment, and the WAL before the redo point can go.</figcaption>
+</figure><p>A checkpoint happens:</p>
+<ul>
+<li>every <a href="https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-CHECKPOINT-TIMEOUT" target="_blank" rel="noopener"><code>checkpoint_timeout</code></a> (default 5 minutes).</li>
+<li>when the WAL since the last checkpoint is about to grow past <a href="https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-MAX-WAL-SIZE" target="_blank" rel="noopener"><code>max_wal_size</code></a> (default 1 GB).</li>
+<li>when we run <a href="https://www.postgresql.org/docs/current/sql-checkpoint.html" target="_blank" rel="noopener"><code>CHECKPOINT</code></a> by hand, on a clean shutdown, and at the start of a base backup.</li>
+</ul>
+<h2 id="crash-recovery"><a class="anchor" href="#crash-recovery" aria-label="Link to this section">#</a>Crash recovery</h2>
+<p>When Postgres starts after a crash:</p>
+<ol>
+<li>it reads <code>pg_control</code> and finds the latest checkpoint record.</li>
+<li>it goes to that checkpoint&#39;s redo point. everything before it is already in the table files.</li>
+<li>it replays every WAL record from the redo point. for each record it compares the record&#39;s LSN with the LSN on the page. if the page already has the change (it was written after that record), it skips the record. if not, it applies it.</li>
+<li>the WAL ends at the first record that is incomplete or whose checksum doesn&#39;t match. that&#39;s where the crash cut it. (we talked about <a href="./checksums.html#postgresql">checksums on the WAL</a> before.)</li>
+<li>transactions with a commit record are committed. every other transaction is aborted.</li>
+<li>it takes an end-of-recovery checkpoint and accepts connections again.</li>
+</ol>
+<figure class="fig" id="figure-recovery" data-figure="recovery">
+<div class="fig-panel"><p class="fig-fallback">Figure 4 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-recovery">Figure 4</a> The machine dies with dirty pages in memory. On restart Postgres starts at the redo point from <code>pg_control</code>, skips a record the page already has, applies the rest, and stops at the torn end of the WAL. <code>tx 905</code> never committed, so its row stays invisible.</figcaption>
+</figure><p>So the time the database is down after a crash is mostly the time to replay the WAL since the last redo point. The checkpoint is what decides how long that is.</p>
+<h2 id="full-page-writes"><a class="anchor" href="#full-page-writes" aria-label="Link to this section">#</a>Full page writes</h2>
+<p>There is one more problem. A page is 8 KB, but the OS and the SSD usually write in smaller blocks (4 KB). If the machine dies in the middle of writing a page, half of it is new and half of it is old. This is a <strong>torn page</strong>, and replaying a small WAL record on top of it doesn&#39;t fix it.</p>
+<p>So after every checkpoint, the first time a page changes, Postgres writes the whole 8 KB page into the WAL (<a href="https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-FULL-PAGE-WRITES" target="_blank" rel="noopener"><code>full_page_writes</code></a>, on by default). Recovery starts from that full copy and applies the rest on top. Later changes to the same page, until the next checkpoint, are small records again.</p>
+<p>That&#39;s also why the WAL volume jumps right after every checkpoint, and it is the main reason why checkpoints that are too frequent are expensive.</p>
+<h2 id="how-often-should-we-checkpoint"><a class="anchor" href="#how-often-should-we-checkpoint" aria-label="Link to this section">#</a>How often should we checkpoint?</h2>
+<ul>
+<li><strong>frequent checkpoints</strong> - less WAL to replay, so a short recovery. but a hot page that changes all the time is written to the table file again at every checkpoint, and after every checkpoint the first change to every page puts a full 8 KB copy in the WAL.</li>
+<li><strong>rare checkpoints</strong> - a hot page that changes 1000 times between two checkpoints is written once. but there is more WAL on the SSD and a longer recovery after a crash.</li>
+</ul>
+<figure class="fig" id="figure-tradeoff" data-figure="tradeoff">
+<div class="fig-panel"><p class="fig-fallback">Figure 5 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-tradeoff">Figure 5</a> The same 30 minutes of writes with a checkpoint every 1, 5 or 15 minutes. Move the crash to see how much WAL recovery has to replay. The numbers are illustrative.</figcaption>
+</figure><p>The defaults (5 minutes and 1 GB) are a middle ground. For write heavy databases we usually raise <code>max_wal_size</code>, so the checkpoints come from the timeout and not from the WAL size. Postgres logs a warning when checkpoints caused by WAL size come closer than <a href="https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-CHECKPOINT-WARNING" target="_blank" rel="noopener"><code>checkpoint_warning</code></a> (30 seconds), and with <a href="https://www.postgresql.org/docs/current/runtime-config-logging.html#GUC-LOG-CHECKPOINTS" target="_blank" rel="noopener"><code>log_checkpoints</code></a> (on by default since Postgres 15) every checkpoint is logged with how long it took. Since Postgres 17 the numbers are also in the <a href="https://www.postgresql.org/docs/current/monitoring-stats.html#MONITORING-PG-STAT-CHECKPOINTER-VIEW" target="_blank" rel="noopener"><code>pg_stat_checkpointer</code></a> view.</p>
+<h2 id="what-we-guarantee-and-what-we-dont"><a class="anchor" href="#what-we-guarantee-and-what-we-dont" aria-label="Link to this section">#</a>What we guarantee (and what we don&#39;t)</h2>
+<ul>
+<li><strong>durable after COMMIT</strong> - once the client gets <code>COMMIT</code>, the commit record is on the SSD. a crash can&#39;t take it back.</li>
+<li><strong>atomic</strong> - a transaction with no commit record in the WAL is aborted after a crash. none of its rows are visible.</li>
+<li><strong>bounded recovery</strong> - replay starts at the redo point of the last finished checkpoint, not at the start of time. so we replay one to two checkpoint intervals of WAL at most.</li>
+<li><strong>not a backup</strong> - the WAL in <code>pg_wal</code> protects us from a crash, not from a dead SSD or a <code>DROP TABLE</code>. for that we need backups and <a href="https://www.postgresql.org/docs/current/continuous-archiving.html" target="_blank" rel="noopener">WAL archiving</a>.</li>
+</ul>
+<aside class="callout warning" role="note"><span class="callout-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3z"/><path d="M12 9v4M12 17h.01"/></svg></span><div class="callout-title">synchronous_commit = off</div><div class="callout-body"><p>With <a href="https://www.postgresql.org/docs/current/wal-async-commit.html" target="_blank" rel="noopener"><code>synchronous_commit = off</code></a> the client gets <code>COMMIT</code> before the WAL flush, and the WAL writer flushes it a bit later. A crash can lose the last few hundred milliseconds of commits (up to 3 × <code>wal_writer_delay</code>, so 600 ms by default). The data stays consistent, the lost transactions are just aborted. It&#39;s the same deal as <code>acks=1</code> in the <a href="./wal-delivery-system.html#kafka">WAL delivery system</a>: only for data that is inherently not that important.</p>
+</div></aside>
+<h2 id="now-crash-it-yourself"><a class="anchor" href="#now-crash-it-yourself" aria-label="Link to this section">#</a>Now crash it yourself</h2>
+<p>Every figure above is one idea on its own. This is all of them in one place: the shared buffers, the WAL buffers, the table file, <code>pg_wal</code> and <code>pg_control</code>.</p>
+<figure class="fig" id="figure-lab" data-figure="lab">
+<div class="fig-panel"><p class="fig-fallback">Figure 6 is animated and needs JavaScript.</p></div>
+<figcaption><a class="fig-num" href="#figure-lab">Figure 6</a> Run transactions, take a checkpoint, and pull the plug whenever you want. Then restart and watch the replay. Turn <code>synchronous_commit</code> off to see an acknowledged commit get lost.</figcaption>
+</figure><aside class="callout try" role="note"><span class="callout-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg></span><div class="callout-title">Break it</div><div class="callout-body"><ol>
+<li>Run a few <code>UPDATE + COMMIT</code>, then crash before the checkpoint. Every acked commit comes back after the restart.</li>
+<li>Run <code>UPDATE, no COMMIT</code> and crash. The client never got <code>COMMIT</code>, so the change is gone, or left as a dead row if its record already reached the SSD.</li>
+<li>Turn <code>synchronous_commit</code> off, commit and crash right away. The client got <code>COMMIT</code>, and the transaction is still lost.</li>
+<li>Take a <code>CHECKPOINT</code> before the crash, and see how much less WAL the restart replays.</li>
+</ol>
+</div></aside>
+</div>
+</div>
+</div>
+<nav class="pager" aria-label="More writing"><a class="prev" href="./wal-delivery-system.html"><div class="dir"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Previous</span></div><p class="title">Building a WAL Delivery System with Kafka</p></a><span></span></nav>
+</article>
+<button class="to-top" type="button" aria-label="Back to top"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+<script>
+/* Blog page runtime: reading progress, back to top, toc, previews, code copy, lab chrome, and the Kit API for simulations. */
+(function () {
+  "use strict";
+  var doc = document, root = doc.documentElement;
+
+  /* ---------- theme ----------
+     The site is light only. The studio preview can force a theme via data-theme, and Kit.onTheme
+     listeners still fire when that attribute changes. */
+  var themeListeners = [];
+  function currentTheme() { return root.getAttribute("data-theme") === "dark" ? "dark" : "light"; }
+  new MutationObserver(function () {
+    var t = currentTheme();
+    themeListeners.slice().forEach(function (fn) { try { fn(t); } catch (e) { console.error(e); } });
+  }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+
+  /* ---------- reading progress + back to top ---------- */
+  var prog = doc.querySelector(".progress"), toTop = doc.querySelector(".to-top"), ticking = false;
+  function onScroll() {
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(function () {
+      ticking = false;
+      var y = window.scrollY, max = Math.max(1, doc.documentElement.scrollHeight - innerHeight);
+      if (prog) prog.style.width = (Math.min(1, y / max) * 100).toFixed(2) + "%";
+      if (toTop) toTop.classList.toggle("show", y > 400);
+    });
+  }
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+  if (toTop) toTop.addEventListener("click", function () { scrollTo({ top: 0, behavior: "smooth" }); });
+
+  /* ---------- writing previews (blog index) ---------- */
+  var previewLinks = doc.querySelectorAll(".post-link[data-preview-body]");
+  if (previewLinks.length && window.matchMedia && matchMedia("(hover: hover)").matches) {
+    var pop = doc.createElement("div"), current = null;
+    pop.className = "popover"; pop.setAttribute("aria-hidden", "true");
+    pop.innerHTML = '<h3></h3><p class="meta"></p><p class="body"></p>';
+    doc.body.appendChild(pop);
+    var show = function (a) {
+      current = a;
+      pop.querySelector("h3").textContent = a.textContent.trim();
+      pop.querySelector(".meta").textContent = [a.dataset.previewDate, a.dataset.previewMinutes && a.dataset.previewMinutes + " min read"].filter(Boolean).join(" · ");
+      pop.querySelector(".body").textContent = a.dataset.previewBody;
+      var r = a.getBoundingClientRect(), gap = 8, h = pop.offsetHeight;
+      var top = r.bottom + gap + h <= innerHeight ? r.bottom + gap : r.top - gap - h;
+      pop.style.top = Math.max(8, top) + "px";
+      pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 16)) + "px";
+      pop.classList.add("show");
+    };
+    var hide = function () { current = null; pop.classList.remove("show"); };
+    previewLinks.forEach(function (a) {
+      a.addEventListener("mouseenter", function () { show(a); });
+      a.addEventListener("focus", function () { show(a); });
+      a.addEventListener("mouseleave", hide);
+      a.addEventListener("blur", hide);
+    });
+    addEventListener("scroll", function () {
+      if (!current) return;
+      if (current.matches(":hover") || current === doc.activeElement) show(current); else hide();
+    }, { passive: true });
+  }
+
+  /* ---------- toc highlight ---------- */
+  var tocLinks = [].slice.call(doc.querySelectorAll(".toc a"));
+  if (tocLinks.length && "IntersectionObserver" in window) {
+    var byId = {}, heads = [];
+    tocLinks.forEach(function (a) {
+      var id = decodeURIComponent(a.getAttribute("href").slice(1)), h = doc.getElementById(id);
+      if (h) { byId[id] = a; heads.push(h); }
+    });
+    var visible = {};
+    var setActive = function () {
+      var best = null;
+      for (var i = 0; i < heads.length; i++) {
+        if (heads[i].getBoundingClientRect().top < innerHeight * 0.35) best = heads[i]; else break;
+      }
+      tocLinks.forEach(function (a) { a.classList.remove("active"); });
+      var on = best && byId[best.id];
+      if (on) {
+        on.classList.add("active");
+        /* in the side toc, keep the active entry inside the toc's own scroll area (never scrolls the page) */
+        var box = on.closest(".toc");
+        if (box && box.scrollHeight > box.clientHeight) {
+          var top = on.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop, pad = 40;
+          if (top < box.scrollTop + pad) box.scrollTop = Math.max(0, top - pad);
+          else if (top + on.offsetHeight > box.scrollTop + box.clientHeight - pad) box.scrollTop = top + on.offsetHeight - box.clientHeight + pad;
+        }
+      }
+    };
+    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { visible[e.target.id] = e.isIntersecting; }); setActive(); }, { rootMargin: "0px 0px -60% 0px" });
+    heads.forEach(function (h) { io.observe(h); });
+    addEventListener("scroll", function () { requestAnimationFrame(setActive); }, { passive: true });
+    setActive();
+  }
+
+  /* toc in the side gutter (wide screens) hides while the wide simulation lab is on screen */
+  var tocEl = doc.querySelector(".toc"), labWrap = doc.querySelector(".lab-wrap");
+  if (tocEl && labWrap && "IntersectionObserver" in window) {
+    new IntersectionObserver(function (es) { tocEl.classList.toggle("away", es[0].isIntersecting); }).observe(labWrap);
+  }
+
+  /* ---------- code copy ---------- */
+  doc.querySelectorAll(".code .copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var code = btn.closest(".code").querySelector("pre code");
+      var txt = code ? code.textContent : "";
+      var done = function () { btn.textContent = "Copied"; btn.classList.add("done"); setTimeout(function () { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1400); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () {});
+      else { var ta = doc.createElement("textarea"); ta.value = txt; doc.body.appendChild(ta); ta.select(); try { doc.execCommand("copy"); done(); } catch (e) {} ta.remove(); }
+    });
+  });
+
+  /* ---------- lab: fullscreen ---------- */
+  doc.querySelectorAll(".lab").forEach(function (lab) {
+    lab.querySelectorAll("[data-fullscreen]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var fsEl = doc.fullscreenElement || doc.webkitFullscreenElement;
+        if (fsEl) { (doc.exitFullscreen || doc.webkitExitFullscreen).call(doc); return; }
+        if (lab.classList.contains("fake-fs")) { lab.classList.remove("fake-fs"); doc.body.style.overflow = ""; return; }
+        var req = lab.requestFullscreen || lab.webkitRequestFullscreen;
+        if (req) { var p = req.call(lab); if (p && p.catch) p.catch(fakeFs); }
+        else fakeFs();
+        function fakeFs() { lab.classList.add("fake-fs"); doc.body.style.overflow = "hidden"; }
+      });
+    });
+  });
+
+  /* ---------- Kit: the API simulations are written against ---------- */
+  var labEl = doc.querySelector(".lab"), labVisible = true;
+  if (labEl && "IntersectionObserver" in window) {
+    new IntersectionObserver(function (es) { labVisible = es[0].isIntersecting; }, { rootMargin: "300px 0px" }).observe(labEl);
+  }
+  var cs = function () { return getComputedStyle(root); };
+  var Kit = {
+    version: 1,
+    root: doc.querySelector(".lab-body"),
+    /* canvas text was laid out for a proportional face; mono overflows the diagram boxes */
+    font: { sans: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', mono: '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace' },
+    get theme() { return currentTheme(); },
+    /* figure animations explain the post, so they ignore prefers-reduced-motion */
+    reducedMotion: false,
+    /* read one CSS custom property, e.g. Kit.css("--accent") */
+    css: function (name) { return cs().getPropertyValue(name.indexOf("--") === 0 ? name : "--" + name).trim(); },
+    /* read many at once: Kit.colors(["accent", "ok"]) -> { accent: "#8b5cf6", ok: "..." } */
+    colors: function (names) { var s = cs(), o = {}; names.forEach(function (n) { o[n] = s.getPropertyValue("--" + n.replace(/^--/, "")).trim(); }); return o; },
+    /* run fn(theme) whenever light/dark changes; returns an unsubscribe function */
+    onTheme: function (fn) { themeListeners.push(fn); return function () { themeListeners = themeListeners.filter(function (f) { return f !== fn; }); }; },
+    /* animation loop, fn(dtSeconds, nowMs). Skips frames while the lab is off screen or the tab is hidden. */
+    loop: function (fn, opts) {
+      opts = opts || {}; var maxDt = opts.maxDt || 0.1, last = performance.now(), stopped = false;
+      function frame(now) {
+        if (stopped) return;
+        var dt = Math.min(maxDt, (now - last) / 1000); last = now;
+        if ((labVisible || opts.always) && !doc.hidden) {
+          try { fn(dt, now); } catch (e) { stopped = true; Kit.fail(e); return; }
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+      return { stop: function () { stopped = true; } };
+    },
+    /* size a canvas to its container for a logical width x height scene; returns { ctx, scale, dpr } with the
+       transform already applied so you draw in logical units */
+    fitCanvas: function (canvas, w, h, opts) {
+      opts = opts || {};
+      var box = opts.container || canvas.parentElement, avail = Math.max(0, box.clientWidth - 2);
+      var scale = Math.min(opts.max || 1.25, Math.max(avail / w, opts.min || 0.5)), dpr = window.devicePixelRatio || 1;
+      var cw = Math.round(w * scale), ch = Math.round(h * scale);
+      if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
+        canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+        canvas.style.width = cw + "px"; canvas.style.height = ch + "px";
+      }
+      var ctx = canvas.getContext("2d"); ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+      return { ctx: ctx, scale: scale, dpr: dpr };
+    },
+    /* resolves once web fonts are loaded so canvas text measures correctly */
+    ready: doc.fonts && doc.fonts.ready ? doc.fonts.ready.then(function () {}) : Promise.resolve(),
+    esc: function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); },
+    /* show a readable error inside the lab instead of a blank box */
+    fail: function (err) {
+      console.error(err);
+      if (!Kit.root) return;
+      var pre = doc.createElement("pre"); pre.className = "lab-error";
+      pre.textContent = "The simulation hit an error and stopped.\n\n" + (err && (err.stack || err.message) || err);
+      Kit.root.prepend(pre);
+    }
+  };
+  window.Kit = Kit;
+
+  /* ---------- figures: small animated scenes placed with `::figure <id>` lines ----------
+     figures.js registers each one with Kit.figure(id, function (f) { ... }). Every figure gets its own
+     clock that only runs while the figure is on screen, so waits and tweens pause when scrolled away. */
+  var SVGNS = "http://www.w3.org/2000/svg", CANCEL = {}, figs = [];
+  function build(ns, tag, attrs, kids) {
+    var el = ns ? doc.createElementNS(ns, tag) : doc.createElement(tag);
+    for (var k in attrs || {}) {
+      var v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === "text") el.textContent = v;
+      else if (k === "html") el.innerHTML = v;
+      else if (k.slice(0, 2) === "on" && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    (kids || []).forEach(function (c) { if (c != null) el.appendChild(typeof c === "string" ? doc.createTextNode(c) : c); });
+    return el;
+  }
+  /* Kit.h("div", { class: "x", text: "hi", onclick: fn }, [children]) and the SVG twin Kit.s("rect", {...}) */
+  Kit.h = function (tag, attrs, kids) { return build(null, tag, attrs, kids); };
+  Kit.s = function (tag, attrs, kids) { return build(SVGNS, tag, attrs, kids); };
+  Kit.ease = {
+    linear: function (t) { return t; },
+    out: function (t) { return 1 - Math.pow(1 - t, 3); },
+    inOut: function (t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; },
+  };
+  Kit.lerp = function (a, b, t) { return a + (b - a) * t; };
+
+  function makeFigure(el) {
+    var panel = el.querySelector(".fig-panel"), jobs = [], frames = [], token = null, enter = [], entered = false;
+    var f = {
+      el: el, panel: panel, id: el.getAttribute("data-figure"),
+      time: 0, visible: false, speed: 1, reducedMotion: Kit.reducedMotion,
+      h: Kit.h, s: Kit.s,
+      /* header + big readout + actions + stage, laid out like every other figure */
+      chrome: function (o) {
+        o = o || {};
+        var head = Kit.h("div", { class: "fig-head" }, [
+          Kit.h("span", { class: "fig-tags" }, [
+            o.tag ? Kit.h("span", { class: "fig-pill", text: "✻ " + o.tag }) : null,
+            o.label ? Kit.h("span", { class: "fig-label", text: o.label }) : null,
+          ]),
+          f.statusEl = Kit.h("span", { class: "fig-status", "aria-live": "polite" }),
+        ]);
+        var bar = Kit.h("div", { class: "fig-bar" }, [
+          Kit.h("div", { class: "fig-big" }, [f.bigEl = Kit.h("b"), f.unitEl = Kit.h("span")]),
+          f.actions = Kit.h("div", { class: "fig-actions" }),
+        ]);
+        f.stage = Kit.h("div", { class: "fig-stage" + (o.stageClass ? " " + o.stageClass : "") });
+        f.foot = Kit.h("div", { class: "fig-foot" });
+        panel.append(head, bar, f.stage, f.foot);
+        return f;
+      },
+      status: function (text, color) { f.statusEl.textContent = text; f.statusEl.style.color = color || ""; },
+      big: function (value, unit, color) {
+        f.bigEl.textContent = value; f.bigEl.style.color = color || "";
+        if (unit != null) f.unitEl.textContent = unit;
+      },
+      button: function (label, onClick, o) {
+        o = o || {};
+        var b = Kit.h("button", { type: "button", class: "fig-btn" + (o.primary ? " primary" : ""), text: label, onclick: onClick });
+        (o.parent || f.actions).appendChild(b); return b;
+      },
+      /* segmented control: f.segmented([["all", "acks=all"], ["1", "acks=1"]], "all", fn) */
+      segmented: function (options, value, onChange, o) {
+        o = o || {};
+        var wrap = Kit.h("div", { class: "fig-seg", role: "group", "aria-label": o.label || "" }), btns = [];
+        var set = function (v, fire) {
+          value = v;
+          btns.forEach(function (b) { var on = b.dataset.v === String(v); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
+          if (fire) onChange(v);
+        };
+        options.forEach(function (opt) {
+          var b = Kit.h("button", { type: "button", "data-v": opt[0], text: opt[1], onclick: function () { if (String(value) !== opt[0]) set(opt[0], true); } });
+          btns.push(b); wrap.appendChild(b);
+        });
+        set(value, false);
+        (o.parent || f.actions).appendChild(wrap);
+        return { get value() { return value; }, set: set };
+      },
+      svg: function (w, h, o) {
+        o = o || {};
+        var svg = Kit.s("svg", { viewBox: "0 0 " + w + " " + h, class: "fig-svg", role: "img", "aria-label": o.label || "" });
+        if (o.minWidth) { svg.style.minWidth = o.minWidth + "px"; (o.parent || f.stage).classList.add("fig-wide"); }
+        (o.parent || f.stage).appendChild(svg); return svg;
+      },
+      /* per-frame callback while visible: fn(dtSeconds, figureTimeMs) */
+      loop: function (fn) { frames.push(fn); },
+      /* first time the figure is mostly on screen; replays start from here */
+      onEnter: function (fn) { if (entered) fn(); else enter.push(fn); },
+      /* run an async sequence; starting a new one cancels the old. s.wait(ms), s.tween(ms, fn, ease).
+         With s.fast set, waits resolve at once and tweens jump to their end (used to skip to a step). */
+      run: function (fn) {
+        if (token) token.dead = true;
+        var tk = token = { dead: false };
+        jobs = jobs.filter(function (j) { return !j.tk.dead; });
+        var add = function (j) {
+          return new Promise(function (res, rej) {
+            if (tk.dead) return rej(CANCEL);
+            j.tk = tk; j.start = f.time; j.res = res; jobs.push(j);
+          });
+        };
+        var now = function () { return tk.dead ? Promise.reject(CANCEL) : Promise.resolve(); };
+        var s = {
+          fast: false,
+          get alive() { return !tk.dead; },
+          wait: function (ms) { return s.fast ? now() : add({ dur: ms }); },
+          tween: function (ms, cb, ease) {
+            if (s.fast) { if (!tk.dead) cb(1); return now(); }
+            if (f.reducedMotion) { cb(1); return s.wait(Math.min(ms, 120)); }
+            return add({ dur: ms, cb: cb, ease: ease || Kit.ease.inOut });
+          },
+        };
+        return Promise.resolve().then(function () { return fn(s); }).catch(function (e) { if (e !== CANCEL) f.fail(e); });
+      },
+      stop: function () { if (token) token.dead = true; jobs = []; },
+      /* step-by-step playback: prev / play-pause / next buttons, step dots and a narration line.
+         list: [{ title, text, play: async s => {} }], text can be a function. Going to step i runs o.reset(),
+         replays steps 0..i-1 with s.fast (no waiting), then plays step i, so every play() has to reach the
+         same end state at any speed. o.enter(i) runs as step i starts. Autoplay starts when the figure
+         comes into view, moves on o.gap ms after each step and stops after the last one. */
+      steps: function (list, o) {
+        o = o || {};
+        var last = list.length - 1, index = 0, auto = false, busy = false, started = false;
+        var player = Kit.h("div", { class: "fx-player", role: "group", "aria-label": "Steps" });
+        f.actions.appendChild(player);
+        var prev = f.button("← prev", function () { go(index - 1); }, { parent: player });
+        var toggle = f.button("", function () { if (auto) pause(); else play(); }, { primary: true, parent: player });
+        var next = f.button("next →", function () { go(index + 1); }, { parent: player });
+        toggle.classList.add("fx-toggle");
+        prev.setAttribute("aria-label", "Previous step"); next.setAttribute("aria-label", "Next step");
+        var dots = Kit.h("span", { class: "fx-steps" }), say = Kit.h("span", { class: "fx-say", "aria-live": "polite" });
+        list.forEach(function (st, i) {
+          dots.appendChild(Kit.h("button", { type: "button", "aria-label": "Step " + (i + 1) + ": " + st.title, onclick: function () { go(i); } }));
+        });
+        panel.insertBefore(Kit.h("div", { class: "fig-narr" }, [dots, say]), f.foot || null);
+
+        function sync() {
+          var replay = !auto && started && index === last && !busy;
+          prev.disabled = index === 0; next.disabled = index === last;
+          toggle.textContent = auto ? "❚❚ pause" : replay ? "↻ replay" : "▶ play";
+          toggle.setAttribute("aria-label", auto ? "Pause autoplay" : replay ? "Replay from the first step" : "Play the steps");
+          [].forEach.call(dots.children, function (b, k) {
+            b.classList.toggle("on", k === index); b.classList.toggle("done", k < index);
+            if (k === index) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+          });
+        }
+        function label(i) {
+          index = i;
+          var st = list[i], text = typeof st.text === "function" ? st.text() : st.text;
+          say.replaceChildren(Kit.h("b", { text: st.title }), " " + (text || ""));
+          sync();
+        }
+        function from(s, k) {
+          label(k); busy = true; sync();
+          if (o.enter) o.enter(k);
+          return s.wait(o.lead == null ? 250 : o.lead).then(function () { return list[k].play(s); }).then(function () {
+            busy = false;
+            if (k === last) auto = false;
+            sync();
+            if (!auto) return;
+            return s.wait(o.gap == null ? 1500 : o.gap).then(function () { if (auto) return from(s, k + 1); });
+          });
+        }
+        /* go to step i and play it; keep = leave autoplay as it is (otherwise a manual jump pauses it) */
+        function go(i, keep) {
+          i = Math.max(0, Math.min(last, i));
+          if (!keep) auto = false;
+          started = true; busy = true; label(i);
+          return f.run(function (s) {
+            if (o.reset) o.reset();
+            s.fast = true;
+            var p = Promise.resolve();
+            list.slice(0, i).forEach(function (st) { p = p.then(function () { return st.play(s); }); });
+            return p.then(function () { s.fast = false; return from(s, i); });
+          });
+        }
+        function play() {
+          auto = true;
+          if (busy) { sync(); return; }
+          go(!started || index === last ? 0 : index + 1, true);
+        }
+        function pause() { auto = false; sync(); }
+        /* the figure moved itself (a scrub, a slider): stop, pause, and call step i the current one */
+        function seek(i) {
+          f.stop(); auto = false; busy = false; started = true;
+          label(Math.max(0, Math.min(last, i)));
+        }
+        f.el.addEventListener("keydown", function (e) {
+          var t = e.target;
+          if (e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t === f.stage) return;
+          if (e.key === "ArrowLeft" && index > 0) { e.preventDefault(); go(index - 1); }
+          else if (e.key === "ArrowRight" && index < last) { e.preventDefault(); go(index + 1); }
+        });
+        if (o.reset) o.reset();
+        label(0);
+        if (o.enter) o.enter(0);
+        f.onEnter(function () { if (!started && o.autoplay !== false) play(); });
+        return {
+          go: go, play: play, pause: pause, seek: seek,
+          next: function () { go(index + 1); }, prev: function () { go(index - 1); },
+          /* replay the current step, e.g. after a scenario control changed */
+          redo: function () { go(index, true); },
+          get index() { return index; }, get auto() { return auto; }, get length() { return list.length; },
+        };
+      },
+      fail: function (err) {
+        console.error(err);
+        panel.prepend(Kit.h("pre", { class: "fig-error", text: "Figure \"" + f.id + "\" hit an error.\n\n" + (err && (err.stack || err.message) || err) }));
+      },
+      _tick: function (dt) {
+        f.time += dt * 1000 * f.speed;
+        var list = jobs.slice();
+        for (var i = 0; i < list.length; i++) {
+          var j = list[i];
+          if (j.tk.dead) continue;
+          var p = j.dur > 0 ? Math.min(1, (f.time - j.start) / j.dur) : 1;
+          if (j.cb) j.cb(j.ease(p));
+          if (p >= 1) { jobs.splice(jobs.indexOf(j), 1); j.res(); }
+        }
+        for (var k = 0; k < frames.length; k++) frames[k](dt, f.time);
+      },
+      _enter: function () { if (entered) return; entered = true; enter.splice(0).forEach(function (fn) { fn(); }); },
+    };
+    return f;
+  }
+
+  /* point and tangent angle at fraction t of an SVG path */
+  Kit.pointAt = function (path, t) {
+    var len = path.getTotalLength(), p = path.getPointAtLength(Math.max(0, Math.min(1, t)) * len);
+    return { x: p.x, y: p.y };
+  };
+
+  var figIO = "IntersectionObserver" in window ? new IntersectionObserver(function (es) {
+    es.forEach(function (e) {
+      var f = e.target.__fig; if (!f) return;
+      f.visible = e.isIntersecting;
+      if (e.intersectionRatio >= 0.35 || (e.isIntersecting && e.boundingClientRect.height > innerHeight)) f._enter();
+    });
+  }, { threshold: [0, 0.35, 0.6] }) : null;
+
+  var figLast = 0, figLooping = false;
+  function figFrame(now) {
+    var dt = figLast ? Math.min(0.1, (now - figLast) / 1000) : 0; figLast = now;
+    if (!doc.hidden) figs.forEach(function (f) { if (f.visible) { try { f._tick(dt); } catch (e) { f.visible = false; f.fail(e); } } });
+    requestAnimationFrame(figFrame);
+  }
+
+  Kit.figure = function (id, setup) {
+    var els = doc.querySelectorAll('figure.fig[data-figure="' + id + '"]');
+    if (!els.length) { console.warn('Kit.figure("' + id + '"): the article has no "::figure ' + id + '" line'); return; }
+    els.forEach(function (el) {
+      if (el.__fig) return;
+      el.querySelector(".fig-panel").innerHTML = "";
+      el.classList.add("mounted");
+      var f = el.__fig = makeFigure(el);
+      figs.push(f);
+      try { setup(f); } catch (e) { f.fail(e); }
+      if (figIO) figIO.observe(el); else { f.visible = true; f._enter(); }
+    });
+    if (!figLooping) { figLooping = true; requestAnimationFrame(figFrame); }
+  };
+  /* called after figures.js: flag ::figure lines that nothing registered */
+  Kit.figuresReady = function () {
+    doc.querySelectorAll("figure.fig:not(.mounted) .fig-fallback").forEach(function (p) {
+      var id = p.closest("figure").getAttribute("data-figure");
+      console.warn('No Kit.figure("' + id + '") in figures.js');
+    });
+  };
+})();
+
+</script>
+
+<script>
+/* figures: postgres-checkpointing */
+try {
+(function (Kit) {
+"use strict";
+/*
+ * Figures for the checkpointing post. Each Kit.figure(id, setup) fills the `::figure <id>` block
+ * with the same name in post.md. The write and crash figures use the same pages and LSNs.
+ */
+const { h, s: sv } = Kit;
+
+/* colours come from template/figure.css (--fx-*), so the figures follow the site theme from one place.
+   bg is the stage surface, bg2 the card the boxes sit on. */
+const CSSV = getComputedStyle(document.querySelector("figure.fig") || document.documentElement);
+const v = n => CSSV.getPropertyValue("--fx-" + n).trim();
+const C = {
+  bg: v("bg-2"), bg2: v("bg"), line: v("line"), line2: v("line-2"),
+  ink: v("ink"), soft: v("soft"), muted: v("muted"), faint: v("faint"), accent: v("accent"),
+  ok: v("ok"), bad: v("bad"), warn: v("warn"),
+  /* diagram parts: the client, pages and table files, the WAL, dirty pages and the checkpointer */
+  client: v("prod"), page: v("pg"), wal: v("retry"), dirty: v("dest"), ckpt: v("kafka"),
+};
+/* short status words use the status colours directly; they always sit next to a ✓ / ✕ glyph */
+const OKT = C.ok, BADT = C.bad;
+
+/* ---------- small SVG kit ---------- */
+
+/* labelled box with a coloured accent bar; state() switches idle / on / dim / bad / ok */
+function box(svg, o) {
+  const g = sv("g");
+  const rect = sv("rect", { x: o.x, y: o.y, width: o.w, height: o.h, rx: o.r ?? 0, "stroke-width": 1.2 });
+  rect.style.cssText = `fill:${C.bg2};stroke:${C.line2};transition:fill .35s ease, stroke .35s ease`;
+  const bar = sv("rect", { x: o.x, y: o.y + 9, width: 3, height: (o.barH || o.h) - 18, rx: 1.5, fill: o.color });
+  const size = o.size || 13;
+  const top = o.top ?? (o.sub != null ? o.h / 2 - 3 : o.h / 2 + 4.5);
+  const label = sv("text", { x: o.x + 14, y: o.y + top, "font-size": size, "font-weight": 600, text: o.label });
+  label.style.fill = C.ink;
+  const sub = o.sub != null ? sv("text", { x: o.x + 14, y: o.y + top + 16, "font-size": 10.5, text: o.sub }) : null;
+  if (sub) sub.style.fill = C.muted;
+  g.append(rect, bar, label);
+  if (sub) g.append(sub);
+  g.style.transition = "opacity .35s ease";
+  (o.parent || svg).appendChild(g);
+  return {
+    g, rect, label, sub, x: o.x, y: o.y, w: o.w, h: o.h, cx: o.x + o.w / 2, cy: o.y + o.h / 2, color: o.color,
+    state(st) {
+      rect.style.stroke = st === "on" ? o.color : st === "bad" ? C.bad : st === "ok" ? C.ok : C.line2;
+      rect.style.fill = st === "on" ? o.color + "1f" : st === "bad" ? C.bad + "17" : st === "ok" ? C.ok + "14" : C.bg2;
+      g.style.opacity = st === "dim" ? 0.42 : 1;
+    },
+    text(t, color) { if (sub) { sub.textContent = t; sub.style.fill = color || C.muted; } },
+  };
+}
+
+function wire(parent, d, o = {}) {
+  const p = sv("path", { d, fill: "none", "stroke-width": o.w || 1.4, "stroke-linecap": "round", "stroke-dasharray": o.dash || null });
+  p.style.cssText = `stroke:${o.color || C.line2};transition:stroke .35s ease, opacity .35s ease`;
+  parent.appendChild(p);
+  return p;
+}
+const lit = (p, color) => { p.style.stroke = color || C.line2; p.classList.toggle("fx-flow", !!color); };
+
+function txt(parent, x, y, text, o = {}) {
+  const t = sv("text", { x, y, "font-size": o.size || 11, "text-anchor": o.anchor || "start", "font-weight": o.weight || null, text });
+  t.style.fill = o.color || C.muted;
+  parent.appendChild(t);
+  return t;
+}
+
+/* a dot that travels along a path; o.reverse runs it backwards, o.to stops part way, o.keep leaves it there */
+async function travel(s, layer, path, color, ms = 700, o = {}) {
+  const c = sv("circle", { r: o.r || 5, cx: -99, cy: -99, fill: color, stroke: C.bg, "stroke-width": 2 });
+  layer.appendChild(c);
+  const to = o.to ?? 1;
+  try {
+    await s.tween(ms, t => {
+      const u = t * to, p = Kit.pointAt(path, o.reverse ? 1 - u : u);
+      c.setAttribute("cx", p.x); c.setAttribute("cy", p.y);
+    }, o.ease || Kit.ease.inOut);
+  } finally {
+    if (!o.keep) c.remove();
+  }
+  return c;
+}
+
+/* a block of data that moves from one place to another along a small arc */
+async function slide(s, layer, o, ms = 800) {
+  const r = sv("rect", { x: o.x0, y: o.y0, width: o.w, height: o.h, "stroke-width": 1.2 });
+  r.style.cssText = `fill:${o.color}33;stroke:${o.color}`;
+  const t = o.label ? txt(layer, 0, 0, o.label, { size: 10.5, anchor: "middle", color: C.ink, weight: 600 }) : null;
+  layer.appendChild(r);
+  if (t) layer.appendChild(t);
+  try {
+    await s.tween(ms, k => {
+      const x = Kit.lerp(o.x0, o.x1, k), y = Kit.lerp(o.y0, o.y1, k) - (o.arc ?? 40) * Math.sin(Math.PI * k);
+      r.setAttribute("x", x); r.setAttribute("y", y);
+      if (t) { t.setAttribute("x", x + o.w / 2); t.setAttribute("y", y + o.h / 2 + 4); }
+    });
+  } finally {
+    r.remove();
+    if (t) t.remove();
+  }
+}
+
+/* a short label that rises and fades; removed after it finishes */
+function pop(layer, x, y, text, color = C.ink, o = {}) {
+  const t = sv("text", { x, y, "font-size": o.size || 11.5, "font-weight": 600, "text-anchor": o.anchor || "middle", class: "fx-pop", text });
+  t.style.fill = color;
+  t.style.animationDuration = (o.ms || 1600) + "ms";
+  layer.appendChild(t);
+  setTimeout(() => t.remove(), (o.ms || 1600) + 50);
+  return t;
+}
+
+/* a slot inside a box (a page, a WAL record): a small line on top, the value in the middle, a note under it.
+   set(null) shows an empty, dashed slot. */
+function slot(parent, x, y, w, ht, empty = "") {
+  const g = sv("g");
+  const r = sv("rect", { x, y, width: w, height: ht, "stroke-width": 1.2 });
+  r.style.transition = "fill .3s ease, stroke .3s ease";
+  const a = sv("text", { x: x + w / 2, y: y + 15, "font-size": 9, "text-anchor": "middle" });
+  const b = sv("text", { x: x + w / 2, y: y + ht / 2 + 5, "font-weight": 600, "text-anchor": "middle" });
+  const c = sv("text", { x: x + w / 2, y: y + ht - 9, "font-size": 9.5, "text-anchor": "middle" });
+  g.append(r, a, b, c);
+  g.style.transition = "opacity .3s ease";
+  parent.appendChild(g);
+  const self = {
+    g, x, y, w, h: ht, cx: x + w / 2, cy: y + ht / 2,
+    /* o: { top, mid, low, color, lowColor, midSize, strong, dim } */
+    set(o) {
+      if (o) r.removeAttribute("stroke-dasharray"); else r.setAttribute("stroke-dasharray", "3 4");
+      r.style.fill = o ? (o.color ? o.color + (o.strong ? "3d" : "17") : C.bg) : "none";
+      r.style.stroke = o ? o.color || C.line2 : C.line2;
+      a.textContent = o ? o.top || "" : "";
+      b.textContent = o ? o.mid || "" : "";
+      c.textContent = o ? o.low || "" : empty;
+      b.setAttribute("font-size", o && o.midSize || 13);
+      a.style.fill = C.muted;
+      b.style.fill = C.ink;
+      c.style.fill = o ? o.lowColor || C.muted : C.faint;
+      g.style.opacity = o && o.dim ? 0.4 : 1;
+      return self;
+    },
+  };
+  return self.set(null);
+}
+
+const key = (color, label) => h("span", { class: "fig-key" }, [h("i", { style: `background:${color}` }), label]);
+const clockStr = sec => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); };
+
+/* ---------- the two lanes every write goes through ---------- */
+
+/* memory on top (shared buffers, WAL buffers), the SSD below (table file, pg_wal); each box has 4 slots */
+function lanes(back, nodes) {
+  const div = sv("line", { x1: 172, x2: 870, y1: 164, y2: 164, "stroke-dasharray": "2 5" });
+  div.style.stroke = C.line2;
+  back.appendChild(div);
+  txt(back, 870, 158, "memory", { size: 10, anchor: "end", color: C.faint });
+  txt(back, 870, 178, "SSD", { size: 10, anchor: "end", color: C.faint });
+  const mk = (x, y, w, label, color, empty) => {
+    const b = box(nodes, { x, y, w, h: 120, top: 20, label, color });
+    b.slots = [0, 1, 2, 3].map(k => slot(nodes, x + 14 + k * 76, y + 34, 68, 62, empty));
+    b.info = txt(nodes, x + w - 12, y + 20, "", { size: 10.5, anchor: "end" });
+    return b;
+  };
+  return {
+    buf: mk(190, 22, 330, "shared buffers", C.page, "free"),
+    walb: mk(550, 22, 320, "WAL buffers", C.wal, ""),
+    table: mk(190, 186, 330, "table file", C.page, ""),
+    pgwal: mk(550, 186, 320, "pg_wal", C.wal, ""),
+  };
+}
+/* the y just under a slot, for pops */
+const under = sl => sl.y + sl.h + 14;
+/* a copy of one slot moves onto another slot */
+const move = (s, layer, from, to, color, label, ms = 700) =>
+  slide(s, layer, { x0: from.x, y0: from.y, x1: to.x, y1: to.y, w: from.w, h: from.h, color, label, arc: 0 }, ms);
+
+/* red wash over the memory lane while the machine is down */
+function deadMemory(layer) {
+  const g = sv("g");
+  const r = sv("rect", { x: 178, y: 2, width: 698, height: 148, "stroke-dasharray": "4 4" });
+  r.style.cssText = `fill:${C.bad}0d;stroke:${C.bad}`;
+  g.appendChild(r);
+  txt(g, 527, 16, "✕ power lost · everything in memory is gone", { size: 11, anchor: "middle", color: BADT, weight: 600 }).classList.add("fx-halo");
+  g.style.cssText = "opacity:0;transition:opacity .3s ease;pointer-events:none";
+  layer.appendChild(g);
+  return g;
+}
+
+const PAGE = (name, lsn, val, o = {}) => ({
+  top: `${name} · lsn ${lsn}`, mid: String(val), low: o.low || "",
+  color: o.dirty ? C.dirty : C.page, lowColor: o.dirty ? C.dirty : null,
+});
+const REC = (lsn, mid, low, o = {}) => ({ top: `lsn ${lsn}`, mid, low, color: C.wal, dim: o.dim });
+
+/* the SSD before the update: user 7's balance (100) lives on p3, last changed by tx 900 at lsn 40 */
+function startSsd(L) {
+  const T = L.table.slots, PW = L.pgwal.slots;
+  T[0].set(PAGE("p1", 31, 12)); T[1].set(PAGE("p2", 35, 55));
+  T[2].set(PAGE("p3", 40, 100, { low: "id 7" })); T[3].set(PAGE("p4", 22, 31));
+  PW[0].set(REC(40, "p3 = 100", "tx 900")); PW[1].set(REC(41, "commit", "tx 900"));
+  PW[2].set(null); PW[3].set(null);
+}
+
+/* the WAL buffers go to pg_wal: lsn 42 and 43 land after the two old records */
+async function flushTwo(s, fx, W, L, tx) {
+  const WB = L.walb.slots, PW = L.pgwal.slots;
+  lit(W.flush, C.wal);
+  await Promise.all([0, 1].map(k => move(s, fx, WB[k], PW[k + 2], C.wal, "lsn " + (42 + k), 700)));
+  PW[2].set(REC(42, "p3 = 80", tx)); PW[3].set(REC(43, "commit", tx));
+  WB[0].set(REC(42, "p3 = 80", "flushed", { dim: true })); WB[1].set(REC(43, "commit", "flushed", { dim: true }));
+  pop(fx, 712, 160, "fsync ✓", OKT, { size: 10.5 });
+  lit(W.flush);
+}
+
+/* ======================================================================
+   Figure: the life of one update (step through)
+   ====================================================================== */
+Kit.figure("write", f => {
+  f.chrome({ tag: "postgres · write path", label: "the life of one update" });
+  const svg = f.svg(880, 316, { label: "A client, shared buffers and WAL buffers in memory, and the table file and pg_wal on the SSD, with one update moving through them", minWidth: 660 });
+  const back = sv("g"), wires = sv("g"), nodes = sv("g"), fx = sv("g");
+  svg.append(back, wires, nodes, fx);
+
+  const W = {
+    query: wire(wires, "M150,64 H190"),
+    load: wire(wires, "M390,186 C390,164 314,164 314,142"),
+    rec: wire(wires, "M520,82 H550"),
+    flush: wire(wires, "M712,142 V186"),
+    ack: wire(wires, "M598,186 V172 H80 V92"),
+    bg: wire(wires, "M150,260 H190"),
+  };
+  const L = lanes(back, nodes);
+  const N = {
+    client: box(nodes, { x: 10, y: 36, w: 140, h: 56, label: "client", sub: "psql", color: C.client }),
+    proc: box(nodes, { x: 10, y: 232, w: 140, h: 56, label: "bgwriter", sub: "or checkpointer", color: C.ckpt }),
+    buf: L.buf, walb: L.walb, table: L.table, pgwal: L.pgwal,
+  };
+  const B = L.buf.slots, WB = L.walb.slots, T = L.table.slots;
+
+  /* flipping the page replays the current step the other way (the UPDATE looks the same, so start at the lookup) */
+  const cached = f.segmented([["hit", "page in shared buffers"], ["miss", "page not in memory"]], "hit", () => steps.go(Math.max(1, steps.index), true), { label: "Page" });
+  const hit = () => cached.value === "hit";
+
+  const STEPS = [
+    {
+      title: "UPDATE",
+      text: "The client sends an update for user 7. The row lives on page p3 of the users table.",
+      on: ["client"],
+      async play(s) {
+        lit(W.query, C.client);
+        await travel(s, fx, W.query, C.client, 500);
+        pop(fx, 170, 52, "UPDATE", C.soft, { size: 10.5 });
+        await s.wait(400);
+      },
+    },
+    {
+      title: "find the page",
+      text: () => hit()
+        ? "p3 is already in shared buffers, so Postgres uses it from memory. No SSD read."
+        : "p3 isn't in shared buffers, so Postgres reads the whole 8 KB page from the table file into shared buffers first.",
+      on: () => hit() ? ["buf"] : ["buf", "table"],
+      async play(s) {
+        if (hit()) {
+          pop(fx, B[1].cx, under(B[1]), "✓ in memory", OKT, { size: 10.5 });
+          await s.wait(800);
+          return;
+        }
+        lit(W.load, C.page);
+        await move(s, fx, T[2], B[1], C.page, "p3", 800);
+        B[1].set(PAGE("p3", 40, 100, { low: "id 7" }));
+        pop(fx, B[1].cx, under(B[1]), "read 8 KB", C.soft, { size: 10.5 });
+        await s.wait(400);
+      },
+    },
+    {
+      title: "dirty",
+      text: "Postgres applies the change to p3 in shared buffers. The table file on the SSD still says 100, so p3 is now a dirty page.",
+      on: ["buf"],
+      async play(s) {
+        B[1].set(PAGE("p3", 40, 80, { dirty: true, low: "dirty" }));
+        pop(fx, B[1].cx, under(B[1]), "100 → 80", C.dirty, { size: 10.5 });
+        await s.wait(900);
+      },
+    },
+    {
+      title: "WAL record",
+      text: "The same change goes into the WAL buffers as record lsn 42. p3 now remembers lsn 42, the last WAL record that changed it.",
+      on: ["buf", "walb"],
+      async play(s) {
+        lit(W.rec, C.wal);
+        await travel(s, fx, W.rec, C.wal, 450);
+        WB[0].set(REC(42, "p3 = 80", "tx 901"));
+        B[1].set(PAGE("p3", 42, 80, { dirty: true, low: "dirty" }));
+        pop(fx, B[1].cx, under(B[1]), "lsn 40 → 42", C.soft, { size: 10.5 });
+        await s.wait(700);
+      },
+    },
+    {
+      title: "COMMIT",
+      text: "On COMMIT, Postgres adds a commit record and flushes the WAL buffers to pg_wal on the SSD, with fsync.",
+      on: ["client", "walb", "pgwal"],
+      async play(s) {
+        lit(W.query, C.client);
+        await travel(s, fx, W.query, C.client, 450);
+        pop(fx, 170, 52, "COMMIT", C.soft, { size: 10.5 });
+        WB[1].set(REC(43, "commit", "tx 901"));
+        await s.wait(500);
+        await flushTwo(s, fx, W, L, "tx 901");
+        await s.wait(300);
+      },
+    },
+    {
+      title: "safe",
+      text: "Only after the flush does the client get COMMIT back. The table file still says 100, and that's fine: the WAL on the SSD has the change.",
+      on: ["client", "pgwal"],
+      async play(s) {
+        lit(W.ack, C.ok);
+        await travel(s, fx, W.ack, C.ok, 900);
+        N.client.text("✓ COMMIT", OKT);
+        f.status("the client has COMMIT · the table file still says 100");
+        await s.wait(500);
+      },
+    },
+    {
+      title: "later",
+      text: "Later the background writer or the checkpointer writes p3 to the table file. The WAL is already on the SSD up to lsn 42, so the page is allowed to go.",
+      on: ["proc", "buf", "table"],
+      async play(s) {
+        lit(W.bg, C.ckpt);
+        await travel(s, fx, W.bg, C.ckpt, 450);
+        lit(W.load, C.dirty);
+        await move(s, fx, B[1], T[2], C.dirty, "p3", 800);
+        T[2].set(PAGE("p3", 42, 80, { low: "id 7" }));
+        B[1].set(PAGE("p3", 42, 80, { low: "clean" }));
+        pop(fx, T[2].cx, under(T[2]), "✓ written", OKT, { size: 10.5 });
+        f.status("p3 is clean again");
+        await s.wait(500);
+      },
+    },
+  ];
+
+  /* before step 1: p3 is on the SSD (and in memory too, for a hit), nothing in the WAL buffers */
+  function reset() {
+    fx.replaceChildren();
+    startSsd(L);
+    B[0].set(PAGE("p1", 31, 12));
+    B[1].set(hit() ? PAGE("p3", 40, 100, { low: "id 7" }) : null);
+    B[2].set(null); B[3].set(null);
+    WB.forEach(sl => sl.set(null));
+    N.client.text("psql");
+    f.status("UPDATE users SET balance = 80 WHERE id = 7");
+  }
+  /* each step lights the boxes it is about */
+  function enter(i) {
+    fx.replaceChildren();
+    const st = STEPS[i], on = typeof st.on === "function" ? st.on() : st.on;
+    Object.entries(N).forEach(([k, b]) => b.state(on.includes(k) ? "on" : "idle"));
+    Object.values(W).forEach(w => lit(w));
+    f.big(`${i + 1}/${STEPS.length}`, st.title);
+  }
+  const steps = f.steps(STEPS, { reset, enter });
+  f.foot.append(key(C.page, "clean page"), key(C.dirty, "dirty page"), key(C.wal, "WAL record"));
+});
+
+/* ======================================================================
+   Figure: a crash before and after the WAL flush
+   ====================================================================== */
+Kit.figure("crash", f => {
+  f.chrome({ tag: "atomicity · durability", label: "where the crash happens" });
+  const svg = f.svg(880, 316, { label: "The same lanes as before. One transaction is cut by a crash before or after its WAL flush, then Postgres restarts", minWidth: 660 });
+  const back = sv("g"), wires = sv("g"), nodes = sv("g"), top = sv("g"), fx = sv("g");
+  svg.append(back, wires, nodes, top, fx);
+
+  const W = {
+    query: wire(wires, "M150,64 H190"),
+    load: wire(wires, "M390,186 C390,164 314,164 314,142"),
+    rec: wire(wires, "M520,82 H550"),
+    flush: wire(wires, "M712,142 V186"),
+    ack: wire(wires, "M598,186 V172 H80 V92"),
+  };
+  const L = lanes(back, nodes);
+  const N = {
+    client: box(nodes, { x: 10, y: 36, w: 140, h: 56, label: "client", sub: "psql", color: C.client }),
+    startup: box(nodes, { x: 10, y: 232, w: 140, h: 56, label: "startup", sub: "replays pg_wal", color: C.muted }),
+    buf: L.buf, walb: L.walb, table: L.table, pgwal: L.pgwal,
+  };
+  const B = L.buf.slots, WB = L.walb.slots, T = L.table.slots, PW = L.pgwal.slots;
+  const dead = deadMemory(top);
+
+  /* the crash point picks the story; switching replays the current step the other way */
+  const when = f.segmented([["before", "crash before the flush"], ["after", "crash after the flush"]], "before", () => steps.go(Math.max(1, steps.index), true), { label: "Crash point" });
+  const early = () => when.value === "before";
+
+  const STEPS = [
+    {
+      title: "write",
+      text: "tx 902 sets user 7's balance to 80. p3 is dirty in shared buffers and record lsn 42 is in the WAL buffers. Nothing is on the SSD yet.",
+      on: ["client", "buf", "walb"],
+      async play(s) {
+        lit(W.query, C.client);
+        await travel(s, fx, W.query, C.client, 450);
+        B[1].set(PAGE("p3", 40, 80, { dirty: true, low: "dirty" }));
+        lit(W.rec, C.wal);
+        await travel(s, fx, W.rec, C.wal, 400);
+        WB[0].set(REC(42, "p3 = 80", "tx 902"));
+        B[1].set(PAGE("p3", 42, 80, { dirty: true, low: "dirty" }));
+        await s.wait(500);
+      },
+    },
+    {
+      title: "COMMIT",
+      text: () => early()
+        ? "The client sends COMMIT. The commit record goes into the WAL buffers, and the flush to the SSD starts..."
+        : "The client sends COMMIT. The WAL buffers are flushed to pg_wal, and only then the client gets COMMIT back.",
+      on: () => early() ? ["client", "walb"] : ["client", "walb", "pgwal"],
+      async play(s) {
+        lit(W.query, C.client);
+        await travel(s, fx, W.query, C.client, 450);
+        pop(fx, 170, 52, "COMMIT", C.soft, { size: 10.5 });
+        WB[1].set(REC(43, "commit", "tx 902"));
+        await s.wait(400);
+        if (early()) {
+          /* the flush is on its way when the next step cuts the power */
+          lit(W.flush, C.wal);
+          await travel(s, fx, W.flush, C.wal, 700, { to: 0.45, ease: Kit.ease.linear, keep: true });
+          return;
+        }
+        await flushTwo(s, fx, W, L, "tx 902");
+        lit(W.ack, C.ok);
+        await travel(s, fx, W.ack, C.ok, 800);
+        N.client.text("✓ COMMIT", OKT);
+      },
+    },
+    {
+      title: "crash",
+      text: () => early()
+        ? "...and the machine dies before the flush reaches the SSD. Everything in memory is gone, and the client gets a connection error, not COMMIT."
+        : "The machine dies. Shared buffers and WAL buffers are gone, and the table file still says 100. The change is only in pg_wal.",
+      on: [],
+      async play(s) {
+        dead.style.opacity = 1;
+        B.forEach(sl => sl.set(null));
+        WB.forEach(sl => sl.set(null));
+        if (early()) N.client.text("✕ connection lost", BADT);
+        f.status("✕ crashed", BADT);
+        await s.wait(800);
+      },
+    },
+    {
+      title: "restart",
+      text: () => early()
+        ? "Postgres replays pg_wal. There is nothing of tx 902 in it, so p3 stays 100. The client was told the transaction failed, and nothing of it is visible. This is atomicity."
+        : "Postgres replays pg_wal. p3 on the SSD has lsn 40, older than record 42, so the change is applied, and commit 43 marks tx 902 committed. p3 = 80 again. This is durability.",
+      on: ["startup", "pgwal", "table", "buf"],
+      async play(s) {
+        dead.style.opacity = 0;
+        f.status("restarting · replaying pg_wal");
+        lit(W.load, C.page);
+        await move(s, fx, T[2], B[1], C.page, "p3", 600);
+        B[1].set(PAGE("p3", 40, 100, { low: "id 7" }));
+        lit(W.load);
+        if (early()) {
+          pop(fx, PW[1].cx, under(PW[1]), "end of WAL", C.soft, { size: 10.5 });
+          await s.wait(500);
+          f.big("100", "user 7's balance after the restart");
+          f.status("✓ tx 902 never happened · atomic", OKT);
+        } else {
+          await move(s, fx, PW[2], B[1], C.wal, "lsn 42", 800);
+          B[1].set(PAGE("p3", 42, 80, { dirty: true, low: "replayed" }));
+          pop(fx, B[1].cx, under(B[1]), "lsn 40 < 42 · apply", C.soft, { size: 10.5 });
+          await s.wait(400);
+          pop(fx, PW[3].x + PW[3].w, under(PW[3]), "✓ tx 902 committed", OKT, { size: 10.5, anchor: "end" });
+          f.big("80", "user 7's balance after the restart");
+          f.status("✓ the committed change survived · durable", OKT);
+        }
+        await s.wait(500);
+      },
+    },
+  ];
+
+  /* before step 1: p3 is clean in memory and on the SSD, the WAL buffers are empty */
+  function reset() {
+    fx.replaceChildren();
+    startSsd(L);
+    B[0].set(PAGE("p1", 31, 12));
+    B[1].set(PAGE("p3", 40, 100, { low: "id 7" }));
+    B[2].set(null); B[3].set(null);
+    WB.forEach(sl => sl.set(null));
+    dead.style.opacity = 0;
+    N.client.text("psql");
+    f.status("UPDATE users SET balance = 80 WHERE id = 7; COMMIT;");
+  }
+  function enter(i) {
+    fx.replaceChildren();
+    const st = STEPS[i], on = typeof st.on === "function" ? st.on() : st.on;
+    Object.entries(N).forEach(([k, b]) => b.state(on.includes(k) ? "on" : "idle"));
+    Object.values(W).forEach(w => lit(w));
+    f.big(`${i + 1}/${STEPS.length}`, st.title);
+  }
+  const steps = f.steps(STEPS, { reset, enter });
+});
+
+/* ======================================================================
+   Figure: what a checkpoint does (step through)
+   ====================================================================== */
+Kit.figure("checkpoint", f => {
+  f.chrome({ tag: "postgres · checkpointer", label: "what a checkpoint does" });
+  const svg = f.svg(880, 326, { label: "Shared buffers with eight pages, the WAL in six segments, the table file and pg_control, with the checkpointer writing the dirty pages", minWidth: 660 });
+  const nodes = sv("g"), marks = sv("g"), fx = sv("g");
+  svg.append(nodes, marks, fx);
+
+  const N = {
+    ckpt: box(nodes, { x: 10, y: 10, w: 150, h: 56, label: "checkpointer", sub: "", color: C.ckpt }),
+    ctl: box(nodes, { x: 10, y: 214, w: 150, h: 104, top: 22, label: "pg_control", sub: "", color: C.muted }),
+    buf: box(nodes, { x: 190, y: 10, w: 680, h: 104, top: 20, label: "shared buffers", color: C.page }),
+    table: box(nodes, { x: 190, y: 214, w: 680, h: 104, top: 20, label: "table file", color: C.page }),
+  };
+  const ctl2 = txt(nodes, 24, 272, "", { size: 10.5 });
+  const bufInfo = txt(nodes, 858, 30, "", { size: 10.5, anchor: "end" });
+  const B = Array.from({ length: 8 }, (_, k) => slot(nodes, 204 + k * 82, 40, 74, 62));
+  const T = Array.from({ length: 8 }, (_, k) => slot(nodes, 204 + k * 82, 244, 74, 62));
+
+  /* the WAL: 6 segments of 16 MB; positions are in segments (2.5 = half way through seg 3) */
+  txt(nodes, 160, 166, "pg_wal", { size: 12, anchor: "end", color: C.ink, weight: 600 });
+  txt(nodes, 160, 182, "16 MB segments", { size: 10, anchor: "end" });
+  const SEG = Array.from({ length: 6 }, (_, k) => {
+    const x = 190 + k * 114;
+    const frame = sv("rect", { x, y: 150, width: 108, height: 36, "stroke-width": 1 });
+    frame.style.cssText = `fill:${C.bg2};stroke:${C.line2};transition:opacity .35s ease`;
+    const fill = sv("rect", { x, y: 150, width: 0, height: 36 });
+    fill.style.fill = C.wal + "40";
+    const label = txt(nodes, x + 7, 172, "", { size: 9.5, color: C.soft });
+    nodes.insertBefore(frame, label);
+    nodes.insertBefore(fill, label);
+    return { frame, fill, label };
+  });
+  const posX = p => { const k = Math.min(5, Math.max(0, Math.floor(p))); return 190 + k * 114 + (p - k) * 108; };
+  /* a redo point: a line across the WAL with its name above */
+  function marker() {
+    const g = sv("g"); marks.appendChild(g);
+    const l = sv("line", { y1: 144, y2: 192, "stroke-width": 1.6 });
+    const t = txt(g, 0, 139, "", { size: 10, anchor: "middle", weight: 600 });
+    g.insertBefore(l, t);
+    g.style.transition = "opacity .35s ease";
+    return {
+      at(p, label, color) {
+        const x = posX(p);
+        l.setAttribute("x1", x); l.setAttribute("x2", x); l.style.stroke = color;
+        t.setAttribute("x", x); t.textContent = label; t.style.fill = color;
+      },
+      show(on) { g.style.opacity = on ? 1 : 0; },
+    };
+  }
+  /* a checkpoint record: a thin block in the WAL with "ckpt" under it */
+  function ckRec() {
+    const g = sv("g"); marks.appendChild(g);
+    const r = sv("rect", { y: 151, width: 5, height: 34 });
+    r.style.fill = C.ckpt;
+    const t = txt(g, 0, 200, "ckpt", { size: 9.5, anchor: "middle", color: C.ckpt, weight: 600 });
+    g.insertBefore(r, t);
+    g.style.transition = "opacity .35s ease";
+    return {
+      at(p) { const x = posX(p); r.setAttribute("x", x - 2.5); t.setAttribute("x", x); },
+      show(on) { g.style.opacity = on ? 1 : 0; },
+    };
+  }
+  const oldRedo = marker(), newRedo = marker(), oldCk = ckRec(), newCk = ckRec();
+
+  const FIRST = [1, 4, 0, 6, 3];
+  let W = 0, redoDone = 0, redoNew = 0, gone = 0;
+  const dirty = Array(8).fill(false);
+  const page = (k, st) => ({
+    mid: `p${k + 1}`, low: st === "new" ? "after redo" : st,
+    color: st === "clean" ? C.page : C.dirty, lowColor: st === "clean" ? null : C.dirty,
+  });
+  const info = () => { bufInfo.textContent = `${dirty.filter(Boolean).length} dirty`; };
+  function drawWal() {
+    SEG.forEach((sg, k) => sg.fill.setAttribute("width", k < gone ? 0 : Math.max(0, Math.min(1, W - k)) * 108));
+    f.big(`${Math.round((W - redoDone) * 16)} MB`, "WAL to replay after a crash");
+  }
+  /* the WAL grows by d segments */
+  async function grow(s, d, ms) {
+    const from = W;
+    await s.tween(ms, t => { W = from + d * t; drawWal(); }, Kit.ease.linear);
+  }
+  const seg = p => `seg ${Math.floor(p) + 1}`;
+
+  const STEPS = [
+    {
+      title: "writes",
+      text: "Transactions keep coming. Every change dirties a page in shared buffers and adds to the WAL, so the WAL to replay after a crash grows with it.",
+      on: ["buf"],
+      async play(s) {
+        for (const k of FIRST) {
+          await grow(s, 0.42, 420);
+          dirty[k] = true; B[k].set(page(k, "dirty")); info();
+        }
+        await s.wait(300);
+      },
+    },
+    {
+      title: "redo point",
+      text: "checkpoint_timeout is up. The checkpointer notes where the WAL is right now. This is the new redo point.",
+      on: ["ckpt"],
+      async play(s) {
+        N.ckpt.text("checkpoint starts");
+        oldRedo.at(0.1, "old redo", C.muted);
+        redoNew = W;
+        newRedo.at(W, "redo", C.accent); newRedo.show(true);
+        await s.wait(900);
+      },
+    },
+    {
+      title: "write pages",
+      text: "It writes the 5 pages that were dirty at the redo point, spread out over time. A new change to p3 comes in meanwhile. It is after the redo point, so it waits for the next checkpoint.",
+      on: ["ckpt", "buf", "table"],
+      async play(s) {
+        for (const [i, k] of FIRST.entries()) {
+          N.ckpt.text(`writing ${i + 1}/${FIRST.length}`);
+          await move(s, fx, B[k], T[k], C.dirty, `p${k + 1}`, 650);
+          dirty[k] = false; B[k].set(page(k, "clean")); info();
+          T[k].set({ mid: `p${k + 1}`, low: "✓ written", color: C.page, lowColor: OKT });
+          if (i === 1) {
+            await grow(s, 0.3, 300);
+            dirty[2] = true; B[2].set(page(2, "new")); info();
+          }
+          await s.wait(250);
+        }
+      },
+    },
+    {
+      title: "checkpoint record",
+      text: "The table files are fsynced, a checkpoint record goes into the WAL, and pg_control now points to it. After a crash, replay starts at the new redo point.",
+      on: ["ckpt", "ctl"],
+      async play(s) {
+        N.ckpt.text("fsync · done");
+        await grow(s, 0.04, 200);
+        newCk.at(W - 0.02); newCk.show(true);
+        await s.wait(400);
+        redoDone = redoNew; drawWal();
+        N.ctl.text(`redo → ${seg(redoNew)}`); ctl2.textContent = `checkpoint → ${seg(W)}`;
+        N.ctl.state("ok");
+        f.status("✓ the WAL to replay drops to the new redo point", OKT);
+        await s.wait(700);
+      },
+    },
+    {
+      title: "recycle",
+      text: "WAL before the new redo point isn't needed for crash recovery anymore. Segments 1 and 2 are recycled (renamed and reused for new WAL), unless a replica or the archiver still needs them.",
+      on: ["ctl"],
+      async play(s) {
+        gone = Math.floor(redoNew);
+        for (let k = 0; k < gone; k++) { SEG[k].frame.style.opacity = 0.35; SEG[k].label.textContent = "recycled"; }
+        oldRedo.show(false); oldCk.show(false);
+        drawWal();
+        f.status(`✓ ${gone} segments recycled`, OKT);
+        await s.wait(700);
+      },
+    },
+  ];
+
+  /* before step 1: the last checkpoint is at the start of seg 1 and every page is clean */
+  function reset() {
+    fx.replaceChildren();
+    W = 0.4; redoDone = 0.1; redoNew = 0; gone = 0;
+    dirty.fill(false);
+    B.forEach((sl, k) => sl.set(page(k, "clean")));
+    T.forEach((sl, k) => sl.set({ mid: `p${k + 1}`, color: C.page }));
+    SEG.forEach((sg, k) => { sg.frame.style.opacity = 1; sg.label.textContent = `seg ${k + 1}`; });
+    oldRedo.at(0.1, "redo", C.muted); oldRedo.show(true);
+    oldCk.at(0.15); oldCk.show(true);
+    newRedo.show(false); newCk.show(false);
+    N.ckpt.text("next in 5 min");
+    N.ctl.text("redo → seg 1"); ctl2.textContent = "checkpoint → seg 1";
+    info(); drawWal();
+    f.status("the last checkpoint was at the start of seg 1");
+  }
+  function enter(i) {
+    fx.replaceChildren();
+    const on = STEPS[i].on;
+    Object.entries(N).forEach(([k, b]) => b.state(on.includes(k) ? "on" : "idle"));
+  }
+  f.steps(STEPS, { reset, enter });
+  f.foot.append(key(C.dirty, "dirty page"), key(C.wal + "66", "WAL"), key(C.accent, "redo point"), key(C.ckpt, "checkpoint record"));
+});
+
+/* ======================================================================
+   Figure: crash recovery from the redo point (step through)
+   ====================================================================== */
+Kit.figure("recovery", f => {
+  f.chrome({ tag: "postgres · startup", label: "replay from the redo point" });
+  const svg = f.svg(880, 292, { label: "pg_control, pg_xact, eight WAL records and four table pages, with replay moving through the records", minWidth: 660 });
+  const nodes = sv("g"), marks = sv("g"), fx = sv("g");
+  svg.append(nodes, marks, fx);
+
+  const N = {
+    ctl: box(nodes, { x: 10, y: 34, w: 150, h: 66, top: 20, label: "pg_control", sub: "ckpt lsn 130", color: C.muted }),
+    xact: box(nodes, { x: 10, y: 140, w: 150, h: 140, top: 22, label: "pg_xact", sub: "commit status", color: C.muted }),
+    pages: box(nodes, { x: 190, y: 140, w: 680, h: 140, top: 20, label: "pages", color: C.page }),
+  };
+  txt(nodes, 24, 86, "redo lsn 110", { size: 10.5 });
+  txt(nodes, 858, 160, "read from the SSD into shared buffers", { size: 10.5, anchor: "end", color: C.faint });
+  const XL = [0, 1, 2].map(i => txt(nodes, 24, 202 + i * 22, "", { size: 10.5 }));
+  txt(nodes, 190, 22, "pg_wal", { size: 11, color: C.ink, weight: 600 });
+
+  const RECS = [
+    { lsn: 100, mid: "p1 = 5", low: "tx 902" },
+    { lsn: 110, mid: "p2 = 7", low: "tx 903" },
+    { lsn: 120, mid: "commit", low: "tx 903" },
+    { lsn: 130, mid: "checkpoint", low: "redo 110", ckpt: true },
+    { lsn: 140, mid: "p3 = 9", low: "tx 904" },
+    { lsn: 150, mid: "p1 = 6", low: "tx 905" },
+    { lsn: 160, mid: "commit", low: "tx 904" },
+    { lsn: 170, mid: "p4 = 3", low: "tx 905" },
+  ];
+  const R = RECS.map((_, k) => slot(nodes, 190 + k * 85, 34, 78, 66));
+  const rec = (k, o = {}) => ({ top: `lsn ${RECS[k].lsn}`, mid: RECS[k].mid, low: RECS[k].low, color: RECS[k].ckpt ? C.ckpt : C.wal, midSize: RECS[k].ckpt ? 11 : null, ...o });
+  const P = [0, 1, 2, 3].map(k => slot(nodes, 204 + k * 166, 172, 154, 92));
+  /* the pages as the crash left them on the SSD: p2 was written by the bgwriter after lsn 110 */
+  const DISK = [{ lsn: 100, val: 5 }, { lsn: 110, val: 7 }, { lsn: 90, val: 8 }, { lsn: 80, val: 2 }];
+  const pg = (k, lsn, val, o = {}) => ({ top: `p${k + 1} · lsn ${lsn}`, mid: String(val), color: C.page, ...o });
+
+  const redo = sv("g"); marks.appendChild(redo);
+  const redoL = sv("line", { x1: 271.5, x2: 271.5, y1: 28, y2: 106, "stroke-width": 1.6 });
+  redoL.style.stroke = C.accent;
+  redo.appendChild(redoL);
+  txt(redo, 271.5, 22, "redo", { size: 10, anchor: "middle", color: C.accent, weight: 600 });
+  redo.style.transition = "opacity .35s ease";
+  /* the replay cursor under the record being read */
+  const cur = sv("path", { d: "M-6,10 L0,0 L6,10 Z" });
+  cur.style.cssText = `fill:${C.accent};transition:transform .3s ease, opacity .3s ease`;
+  marks.appendChild(cur);
+  const at = k => { cur.style.transform = `translate(${R[k].cx}px, 106px)`; cur.style.opacity = 1; };
+
+  let applied = 0, skipped = 0;
+  const count = () => f.big(String(applied), `applied · ${skipped} skipped`);
+  const xact = (i, text, color) => { XL[i].textContent = text; XL[i].style.fill = color || C.muted; };
+  /* one record goes from the WAL to its page */
+  const apply = (s, k, p) => slide(s, fx, { x0: R[k].x + 9, y0: R[k].y + 20, x1: P[p].cx - 30, y1: P[p].y + 33, w: 60, h: 26, color: C.wal, label: `lsn ${RECS[k].lsn}`, arc: 24 }, 650);
+
+  const STEPS = [
+    {
+      title: "crash",
+      text: "The machine died with dirty pages in memory, and they are gone. What is left is on the SSD: the table pages, pg_wal and pg_control.",
+      on: [],
+      async play(s) { await s.wait(900); },
+    },
+    {
+      title: "pg_control",
+      text: "Postgres reads pg_control. The latest checkpoint record is at lsn 130, and its redo point is lsn 110. Everything before lsn 110 is already in the table files.",
+      on: ["ctl"],
+      async play(s) {
+        R[3].set(rec(3, { strong: true }));
+        await s.wait(400);
+        redo.style.opacity = 1;
+        R[0].set(rec(0, { dim: true }));
+        f.status("replay starts at lsn 110");
+        await s.wait(700);
+      },
+    },
+    {
+      title: "skip",
+      text: "Replay starts at the redo point. lsn 110 changes p2, but p2 on the SSD already has lsn 110: the background writer wrote it after this change. So the record is skipped.",
+      on: ["pages"],
+      async play(s) {
+        at(1);
+        await s.wait(500);
+        P[1].set(pg(1, 110, 7, { low: "lsn 110 ≥ 110 · skip", strong: true }));
+        skipped++; count();
+        await s.wait(700);
+      },
+    },
+    {
+      title: "apply",
+      text: "lsn 120 commits tx 903, and the checkpoint record has nothing to replay. p3 has lsn 90, older than 140, so that change is applied. The same for p1 at lsn 150. lsn 160 commits tx 904.",
+      on: ["pages", "xact"],
+      async play(s) {
+        P[1].set(pg(1, 110, 7, { low: "skipped" }));
+        at(2); await s.wait(450);
+        xact(0, "tx 903 · committed ✓", OKT);
+        at(3); await s.wait(350);
+        pop(fx, R[3].cx, 128, "nothing to do", C.soft, { size: 10 });
+        await s.wait(250);
+        at(4); await s.wait(300);
+        await apply(s, 4, 2);
+        P[2].set(pg(2, 140, 9, { low: "lsn 90 < 140 · apply", strong: true }));
+        applied++; count();
+        at(5); await s.wait(300);
+        await apply(s, 5, 0);
+        P[0].set(pg(0, 150, 6, { low: "tx 905 · applied", strong: true }));
+        applied++; count();
+        at(6); await s.wait(450);
+        xact(1, "tx 904 · committed ✓", OKT);
+        await s.wait(300);
+      },
+    },
+    {
+      title: "end of WAL",
+      text: "The next record is torn. The crash cut it in the middle, so its checksum doesn't match. This is the end of the WAL.",
+      on: [],
+      async play(s) {
+        at(7); await s.wait(350);
+        R[7].set(rec(7, { color: C.bad, low: "✕ bad CRC", lowColor: BADT }));
+        pop(fx, R[7].x + R[7].w, 128, "end of WAL", BADT, { size: 10.5, anchor: "end" });
+        f.status("the WAL ends at lsn 170");
+        await s.wait(700);
+      },
+    },
+    {
+      title: "done",
+      text: "tx 905 has no commit record, so it is aborted. Its row stays in p1 but is invisible: queries still see p1 = 5. Postgres takes an end-of-recovery checkpoint and accepts connections again.",
+      on: ["xact", "pages"],
+      async play(s) {
+        cur.style.opacity = 0;
+        xact(2, "tx 905 · aborted ✕", BADT);
+        await s.wait(400);
+        P[0].set(pg(0, 150, 5, { low: "1 aborted row (tx 905)", lowColor: BADT }));
+        f.big("2", "committed · 1 aborted", OKT);
+        f.status("✓ ready for connections", OKT);
+        await s.wait(500);
+      },
+    },
+  ];
+
+  /* before step 1: the pages as the crash left them and nothing replayed */
+  function reset() {
+    fx.replaceChildren();
+    applied = skipped = 0; count();
+    RECS.forEach((_, k) => R[k].set(rec(k)));
+    DISK.forEach((d, k) => P[k].set(pg(k, d.lsn, d.val)));
+    [903, 904, 905].forEach((tx, i) => xact(i, `tx ${tx} · ?`));
+    redo.style.opacity = 0; cur.style.opacity = 0;
+    f.status("✕ crashed · restarting", BADT);
+  }
+  function enter(i) {
+    fx.replaceChildren();
+    const on = STEPS[i].on;
+    Object.entries(N).forEach(([k, b]) => b.state(on.includes(k) ? "on" : "idle"));
+  }
+  f.steps(STEPS, { reset, enter });
+});
+
+/* ======================================================================
+   Figure: checkpoint interval vs WAL to replay and page writes
+   ====================================================================== */
+Kit.figure("tradeoff", f => {
+  f.chrome({ tag: "checkpoint_timeout", label: "short recovery or less I/O" });
+  const svg = f.svg(880, 292, { label: "WAL to replay after a crash over 30 minutes, and when the checkpointer writes pages", minWidth: 660 });
+  const grid = sv("g"), plot = sv("g"), marks = sv("g");
+  svg.append(grid, plot, marks);
+
+  const X0 = 64, X1 = 862, Y0 = 30, Y1 = 186, YMAX = 500, LT = 232, LB = 272;
+  const xOf = t => X0 + (X1 - X0) * t / 30, yOf = mb => Y1 - (Y1 - Y0) * Math.min(mb, YMAX) / YMAX;
+  const hline = (y, color, dash) => {
+    const l = sv("line", { x1: X0, x2: X1, y1: y, y2: y, "stroke-dasharray": dash || null });
+    l.style.stroke = color;
+    grid.appendChild(l);
+  };
+  for (let mb = 0; mb <= YMAX; mb += 100) {
+    hline(yOf(mb), mb ? C.line : C.line2, mb ? "2 4" : null);
+    txt(grid, X0 - 8, yOf(mb) + 3.5, String(mb), { size: 10, anchor: "end", color: C.faint });
+  }
+  txt(grid, X0, 16, "WAL to replay if we crash now (MB)", { size: 10.5 });
+  for (let t = 0; t <= 30; t += 5) txt(grid, xOf(t), Y1 + 16, t ? `${t} min` : "0", { size: 10, anchor: "middle", color: C.faint });
+  txt(grid, X0, LT - 10, "checkpointer writing pages", { size: 10.5 });
+  hline(LB, C.line2);
+
+  const band = sv("rect", { y: Y0, height: Y1 - Y0 });
+  band.style.fill = C.bad + "12";
+  const area = sv("path");
+  area.style.fill = C.wal + "1f";
+  const curve = sv("path", { fill: "none", "stroke-width": 1.8, "stroke-linejoin": "round" });
+  curve.style.stroke = C.wal;
+  const bars = sv("g");
+  plot.append(band, area, curve, bars);
+  const redoL = sv("line", { y1: Y0, y2: Y1, "stroke-dasharray": "3 3" });
+  redoL.style.stroke = C.muted;
+  const redoT = txt(marks, 0, Y1 - 6, "redo", { size: 10, color: C.muted });
+  const crashL = sv("line", { y1: Y0 - 4, y2: LB, "stroke-width": 1.4 });
+  crashL.style.stroke = C.bad;
+  const crashT = txt(marks, 0, Y0 + 8, "⚡ crash", { size: 10.5, color: BADT, weight: 600 });
+  const dot = sv("circle", { r: 4.5, "stroke-width": 2 });
+  dot.style.cssText = `fill:${C.bad};stroke:${C.bg}`;
+  marks.insertBefore(redoL, redoT); marks.insertBefore(crashL, crashT); marks.appendChild(dot);
+  redoT.classList.add("fx-halo"); crashT.classList.add("fx-halo");
+
+  /* illustrative numbers: 12 MB/min of WAL, a hot set of 6000 pages, 300 cold pages a minute.
+     After each checkpoint starts, the first change to a hot page adds a full 8 KB copy to the WAL. */
+  const BASE = 12, HOT = 6000, TAU = 2, COLD = 300, FPW = HOT * 8 / 1024, DT = 0.01;
+  const cache = {};
+  function model(I) {
+    if (cache[I]) return cache[I];
+    const t0 = -2 * I, n = Math.round((30 - t0) / DT), cum = new Float64Array(n + 1);
+    for (let i = 1; i <= n; i++) {
+      const t = t0 + (i - 0.5) * DT, since = t - Math.floor(t / I) * I;
+      cum[i] = cum[i - 1] + (BASE + (FPW / TAU) * Math.exp(-since / TAU)) * DT;
+    }
+    const wal = t => cum[Math.max(0, Math.min(n, Math.round((t - t0) / DT)))];
+    /* a checkpoint only counts once it finishes (90% of the interval after it starts) */
+    const redo = t => I * Math.floor((t - 0.9 * I) / I);
+    const replay = t => wal(t) - wal(redo(t));
+    const pts = [];
+    for (let i = 0; i <= 600; i++) pts.push([xOf(i / 20), yOf(replay(i / 20))]);
+    return (cache[I] = {
+      I, redo, replay, pts, n: Math.round(30 / I), wal30: wal(30) - wal(0),
+      pages: HOT * (1 - Math.exp(-I / TAU)) + COLD * I,
+    });
+  }
+
+  const every = f.segmented([["1", "every 1 min"], ["5", "every 5 min"], ["15", "every 15 min"]], "5", () => { drawBars(); crashAt(+slider.value); reveal(); }, { label: "Checkpoint interval" });
+  const slider = h("input", { type: "range", min: 1, max: 30, step: 0.25, value: 22.5, "aria-label": "Crash time" });
+  const sliderV = h("span", { class: "fx-range-v" });
+  f.actions.append(h("label", { class: "fx-range" }, [slider, sliderV]));
+  slider.addEventListener("input", () => crashAt(+slider.value));
+
+  function draw(p) {
+    const m = model(+every.value), pts = m.pts.slice(0, Math.max(2, Math.round((m.pts.length - 1) * p) + 1));
+    const d = "M" + pts.map(q => q[0].toFixed(1) + "," + q[1].toFixed(1)).join("L");
+    curve.setAttribute("d", d);
+    area.setAttribute("d", `${d}L${pts[pts.length - 1][0].toFixed(1)},${Y1}L${X0},${Y1}Z`);
+  }
+  function drawBars() {
+    const m = model(+every.value), rate = m.pages / (0.9 * m.I), ht = (LB - LT) * Math.min(1, rate / 3000);
+    bars.replaceChildren();
+    for (let t = 0; t < 30; t += m.I) {
+      const x0 = xOf(t), x1 = xOf(Math.min(30, t + 0.9 * m.I));
+      const r = sv("rect", { x: x0, y: LB - ht, width: Math.max(1, x1 - x0 - 1), height: ht });
+      r.style.fill = C.ckpt + "59";
+      const tick = sv("line", { x1: x0, x2: x0, y1: LT - 2, y2: LB });
+      tick.style.stroke = C.ckpt;
+      bars.append(r, tick);
+    }
+  }
+  function crashAt(tc) {
+    const m = model(+every.value), r = m.replay(tc), rd = m.redo(tc), x = xOf(tc), rx = xOf(Math.max(0, rd));
+    crashL.setAttribute("x1", x); crashL.setAttribute("x2", x);
+    dot.setAttribute("cx", x); dot.setAttribute("cy", yOf(r));
+    const right = x > X1 - 80;
+    crashT.setAttribute("x", right ? x - 6 : x + 6); crashT.setAttribute("text-anchor", right ? "end" : "start");
+    band.setAttribute("x", rx); band.setAttribute("width", Math.max(0, x - rx));
+    redoL.setAttribute("x1", rx); redoL.setAttribute("x2", rx); redoL.style.opacity = rd < 0 ? 0 : 1;
+    redoT.setAttribute("x", rx + 4); redoT.textContent = rd < 0 ? "redo is before 0:00" : "redo";
+    sliderV.textContent = `crash at ${clockStr(tc * 60)}`;
+    f.big(`${Math.round(r)} MB`, `WAL to replay if we crash at ${clockStr(tc * 60)}`);
+    f.status(`${m.n} checkpoints · ${Math.round(m.pages * m.n * 8 / 1024)} MB of page writes · ${Math.round(m.wal30)} MB of WAL in 30 min`);
+  }
+  function reveal() {
+    f.run(async s => { await s.tween(1100, p => draw(p), Kit.ease.out); });
+  }
+
+  drawBars(); draw(1); crashAt(+slider.value);
+  f.onEnter(() => { draw(0); reveal(); });
+  f.foot.append(
+    key(C.wal, "WAL to replay"), key(C.bad + "33", "replayed after this crash"), key(C.ckpt + "88", "checkpointer writing pages"),
+    h("span", { class: "fig-note", text: "a checkpoint only counts once it finishes · numbers are illustrative" }),
+  );
+});
+
+/* ======================================================================
+   Figure: the crash lab (free play)
+   ====================================================================== */
+Kit.figure("lab", f => {
+  f.chrome({ tag: "postgres · crash lab", label: "pull the plug" });
+  const svg = f.svg(880, 316, { label: "A small Postgres: client, WAL writer, checkpointer, pg_control, shared buffers, WAL buffers, the table file and pg_wal", minWidth: 660 });
+  const back = sv("g"), wires = sv("g"), nodes = sv("g"), top = sv("g"), fx = sv("g");
+  svg.append(back, wires, nodes, top, fx);
+
+  const W = {
+    query: wire(wires, "M160,40 H190"),
+    ack: wire(wires, "M598,186 V172 H174 V66 H160"),
+    rec: wire(wires, "M520,82 H550"),
+    flush: wire(wires, "M712,142 V186"),
+    write: wire(wires, "M160,213 H190"),
+  };
+  const L = lanes(back, nodes);
+  const N = {
+    client: box(nodes, { x: 10, y: 22, w: 150, h: 54, label: "client", sub: "", color: C.client }),
+    walw: box(nodes, { x: 10, y: 88, w: 150, h: 54, label: "WAL writer", sub: "flushes every 3 s", color: C.wal }),
+    ckpt: box(nodes, { x: 10, y: 186, w: 150, h: 54, label: "checkpointer", sub: "", color: C.ckpt }),
+    ctl: box(nodes, { x: 10, y: 252, w: 150, h: 54, label: "pg_control", sub: "", color: C.muted }),
+  };
+  const B = L.buf.slots, WB = L.walb.slots, T = L.table.slots, PW = L.pgwal.slots;
+  const dead = deadMemory(top);
+
+  /* the lab runs faster than real life: checkpoint_timeout is 30 s and the WAL writer flushes every 3 s */
+  const INIT = [40, 25, 60, 10], ORDER = [2, 0, 3, 1], CKPT_MS = 30000, WALW_MS = 3000;
+  let S = null, busy = false, syncCommit = "on", lastSec = -1;
+  const clone = p => ({ lsn: p.lsn, vers: p.vers.slice() });
+
+  /* every page keeps its row versions; a version is visible once its transaction is committed */
+  function fresh() {
+    S = {
+      disk: INIT.map(val => ({ lsn: 10, vers: [{ val, tx: 1 }] })),
+      buf: [null, null, null, null], dirty: [false, false, false, false],
+      wal: [{ lsn: 10, kind: "ckpt", redo: 10 }], next: 11, flushed: 10, ctl: { ckpt: 10, redo: 10 },
+      tx: 2, open: null, committed: new Set([1]), commits: new Map(), acked: [],
+      crashed: false, recovering: false, inCkpt: false, cursor: null, shown: [],
+      replayed: 0, replayTotal: 0, pending: null, result: null, pick: 0,
+      nextWal: f.time + WALW_MS, nextCkpt: f.time + CKPT_MS, walFlash: 0,
+    };
+  }
+  const visible = p => {
+    for (let i = p.vers.length - 1; i >= 0; i--) if (S.committed.has(p.vers[i].tx)) return p.vers[i].val;
+    return "—";
+  };
+  function pageView(k, p, dirty) {
+    const last = p.vers[p.vers.length - 1];
+    let low = dirty ? "dirty" : "", lowColor = dirty ? C.dirty : null;
+    if (!S.committed.has(last.tx)) {
+      if (last.tx === S.open) { low = `open: ${last.val}`; lowColor = C.dirty; }
+      else { low = `aborted: ${last.val}`; lowColor = BADT; }
+    }
+    return { top: `p${k + 1} · lsn ${p.lsn}`, mid: String(visible(p)), low, lowColor, color: dirty ? C.dirty : C.page };
+  }
+  const recView = (r, cur) => ({
+    top: `lsn ${r.lsn}`,
+    mid: r.kind === "upd" ? `p${r.p + 1} = ${r.val}` : r.kind === "commit" ? "commit" : "ckpt",
+    low: r.kind === "ckpt" ? `redo ${r.redo}` : `tx ${r.tx}`,
+    color: r.kind === "ckpt" ? C.ckpt : C.wal, strong: cur,
+  });
+
+  function render() {
+    for (let k = 0; k < 4; k++) {
+      B[k].set(S.buf[k] ? pageView(k, S.buf[k], S.dirty[k]) : null);
+      T[k].set(pageView(k, S.disk[k], false));
+    }
+    const unflushed = S.wal.filter(r => r.lsn > S.flushed), flushed = S.wal.filter(r => r.lsn <= S.flushed);
+    const wb = unflushed.slice(-4);
+    WB.forEach((sl, i) => sl.set(wb[i] ? recView(wb[i]) : null));
+    /* pg_wal shows its last 4 records, or the ones around the record being replayed */
+    let from = Math.max(0, flushed.length - 4);
+    if (S.cursor != null) from = Math.max(0, Math.min(flushed.length - 4, flushed.findIndex(r => r.lsn === S.cursor) - 1));
+    S.shown = flushed.slice(from, from + 4);
+    PW.forEach((sl, i) => sl.set(S.shown[i] ? recView(S.shown[i], S.shown[i].lsn === S.cursor) : null));
+    const toReplay = flushed.filter(r => r.lsn >= S.ctl.redo).length;
+    L.buf.info.textContent = `${S.dirty.filter(Boolean).length} dirty`;
+    L.walb.info.textContent = unflushed.length ? `${unflushed.length} not flushed` : "";
+    L.pgwal.info.textContent = `${toReplay} since redo`;
+    N.client.text(S.open != null ? `tx ${S.open} open` : `${S.acked.length} acked`);
+    N.ctl.text(`redo lsn ${S.ctl.redo}`);
+    dead.style.opacity = S.crashed ? 1 : 0;
+    N.walw.state(S.crashed ? "dim" : f.time < S.walFlash ? "on" : "idle");
+    readout(toReplay);
+    syncButtons();
+  }
+  function readout(toReplay) {
+    if (S.crashed) {
+      f.big("✕", "crashed · memory is gone", BADT);
+      f.status("press restart to replay pg_wal", BADT);
+    } else if (S.recovering) {
+      f.big(String(S.replayed), `of ${S.replayTotal} WAL records replayed`);
+      f.status(S.cursor != null ? `replaying lsn ${S.cursor}` : "end-of-recovery checkpoint");
+    } else if (S.result) {
+      const n = S.result.lost.length;
+      f.big(String(n), n === 1 ? "acked commit lost" : "acked commits lost", n ? BADT : OKT);
+      f.status(S.result.text, n ? BADT : OKT);
+    } else {
+      f.big(String(S.acked.length), S.acked.length === 1 ? "commit acked to the client" : "commits acked to the client");
+      f.status(`${toReplay} WAL record${toReplay === 1 ? "" : "s"} to replay if we crash now`);
+    }
+  }
+
+  async function flushTo(s, lsn, why) {
+    if (lsn <= S.flushed) return;
+    lit(W.flush, C.wal);
+    await travel(s, fx, W.flush, C.wal, 350);
+    lit(W.flush);
+    S.flushed = Math.min(lsn, S.next - 1);
+    render();
+    pop(fx, 712, 160, why || "fsync ✓", why ? C.soft : OKT, { size: 10.5 });
+  }
+
+  async function update(s, commit) {
+    const tx = S.open ?? S.tx++;
+    const k = ORDER[S.pick++ % ORDER.length];
+    lit(W.query, C.client);
+    await travel(s, fx, W.query, C.client, 320);
+    lit(W.query);
+    if (!S.buf[k]) {
+      await move(s, fx, T[k], B[k], C.page, `p${k + 1}`, 420);
+      S.buf[k] = clone(S.disk[k]);
+      render();
+    }
+    const p = S.buf[k], last = p.vers[p.vers.length - 1];
+    const val = (last.tx === tx ? last.val : visible(p)) + 5;
+    const r = { lsn: S.next++, kind: "upd", p: k, val, tx };
+    p.vers.push({ val, tx }); p.lsn = r.lsn; S.dirty[k] = true;
+    S.wal.push(r); S.open = tx;
+    render();
+    lit(W.rec, C.wal);
+    await travel(s, fx, W.rec, C.wal, 280);
+    lit(W.rec);
+    if (!commit) { pop(fx, 85, 14, `tx ${tx} open · no COMMIT`, C.dirty, { size: 10.5 }); return; }
+    const c = { lsn: S.next++, kind: "commit", tx };
+    S.wal.push(c); S.commits.set(tx, c.lsn); S.committed.add(tx); S.open = null;
+    render();
+    if (syncCommit === "on") {
+      await flushTo(s, c.lsn);
+      lit(W.ack, C.ok);
+      await travel(s, fx, W.ack, C.ok, 650);
+      lit(W.ack);
+    } else {
+      /* asynchronous commit: the answer comes before the flush */
+      lit(W.query, C.ok);
+      await travel(s, fx, W.query, C.ok, 300, { reverse: true });
+      lit(W.query);
+    }
+    S.acked.push(tx);
+    render();
+    pop(fx, 85, 14, syncCommit === "on" ? "✓ COMMIT" : "✓ COMMIT · not flushed yet", OKT, { size: 10.5 });
+  }
+
+  /* write every dirty page (WAL first), add the checkpoint record, point pg_control at it, recycle old WAL */
+  async function checkpoint(s, why) {
+    S.inCkpt = true;
+    const redo = S.next;
+    N.ckpt.state("on"); N.ckpt.text(`${why} · redo ${redo}`);
+    render();
+    await s.wait(500);
+    const list = [0, 1, 2, 3].filter(k => S.dirty[k]);
+    for (const [i, k] of list.entries()) {
+      const p = S.buf[k];
+      if (p.lsn > S.flushed) await flushTo(s, p.lsn, "WAL first");
+      lit(W.write, C.ckpt);
+      await move(s, fx, B[k], T[k], C.dirty, `p${k + 1}`, 450);
+      lit(W.write);
+      S.disk[k] = clone(p); S.dirty[k] = false;
+      N.ckpt.text(`wrote ${i + 1}/${list.length} pages`);
+      render();
+    }
+    const r = { lsn: S.next++, kind: "ckpt", redo };
+    S.wal.push(r);
+    render();
+    await flushTo(s, r.lsn);
+    S.ctl = { ckpt: r.lsn, redo };
+    const before = S.wal.length;
+    S.wal = S.wal.filter(x => x.lsn >= redo);
+    const gone = before - S.wal.length;
+    N.ckpt.text(gone ? `${gone} records recycled` : "done");
+    N.ctl.state("ok");
+    render();
+    await s.wait(800);
+    N.ckpt.state("idle"); N.ctl.state("idle");
+    S.inCkpt = false;
+    S.nextCkpt = f.time + CKPT_MS;
+  }
+
+  /* memory is gone; only what was flushed to pg_wal and written to the table file is left */
+  function crash() {
+    fx.replaceChildren();
+    Object.values(W).forEach(w => lit(w));
+    S.wal = S.wal.filter(r => r.lsn <= S.flushed);
+    S.next = S.flushed + 1;
+    for (const [tx, lsn] of S.commits) if (lsn > S.flushed) S.commits.delete(tx);
+    S.committed = new Set([1, ...S.commits.keys()]);
+    S.pending = {
+      lost: S.acked.filter(tx => !S.committed.has(tx)),
+      unheard: [...S.commits.keys()].filter(tx => !S.acked.includes(tx)),
+    };
+    S.buf = [null, null, null, null]; S.dirty = [false, false, false, false];
+    S.open = null; S.crashed = true; S.recovering = false; S.inCkpt = false; S.cursor = null; S.result = null;
+    Object.values(N).forEach(b => b.state("idle"));
+    N.ckpt.text("down");
+    render();
+  }
+
+  /* replay pg_wal from the redo point in pg_control, then an end-of-recovery checkpoint */
+  async function restart(s) {
+    S.crashed = false; S.recovering = true; S.replayed = 0;
+    const recs = S.wal.filter(r => r.lsn >= S.ctl.redo);
+    S.replayTotal = recs.length;
+    N.ctl.state("on");
+    render();
+    await s.wait(700);
+    N.ctl.state("idle");
+    for (const r of recs) {
+      S.cursor = r.lsn;
+      render();
+      const j = S.shown.indexOf(r);
+      await s.wait(220);
+      if (r.kind === "upd") {
+        if (!S.buf[r.p]) {
+          await move(s, fx, T[r.p], B[r.p], C.page, `p${r.p + 1}`, 300);
+          S.buf[r.p] = clone(S.disk[r.p]);
+          render();
+        }
+        const p = S.buf[r.p];
+        if (p.lsn >= r.lsn) pop(fx, B[r.p].cx, under(B[r.p]), "skip", C.soft, { size: 10.5, ms: 900 });
+        else {
+          if (j >= 0) await move(s, fx, PW[j], B[r.p], C.wal, `lsn ${r.lsn}`, 380);
+          p.vers.push({ val: r.val, tx: r.tx }); p.lsn = r.lsn; S.dirty[r.p] = true;
+          pop(fx, B[r.p].cx, under(B[r.p]), "apply", C.soft, { size: 10.5, ms: 900 });
+        }
+      } else if (r.kind === "commit" && j >= 0) {
+        pop(fx, PW[j].cx, under(PW[j]), `✓ tx ${r.tx}`, OKT, { size: 10.5, ms: 900 });
+      }
+      S.replayed++;
+      render();
+      await s.wait(160);
+    }
+    S.cursor = null;
+    if (recs.length) pop(fx, 712, 160, "end of WAL", C.soft, { size: 10.5 });
+    await checkpoint(s, "end-of-recovery");
+    const { lost, unheard } = S.pending;
+    S.acked = S.acked.filter(tx => S.committed.has(tx));
+    S.result = {
+      lost,
+      text: lost.length ? `tx ${lost.join(", ")} got COMMIT before its WAL reached the SSD`
+        : unheard.length ? `✓ nothing acked was lost · tx ${unheard.join(", ")} committed, but the client never heard back`
+        : "✓ every acked commit survived the crash",
+    };
+    S.recovering = false;
+  }
+
+  /* one sequence at a time; a crash cuts whatever is running */
+  function act(fn, force) {
+    if (busy && !force) return;
+    busy = true;
+    syncButtons();
+    f.run(async s => {
+      try { await fn(s); } finally { busy = false; render(); }
+    });
+  }
+  const bCommit = f.button("UPDATE + COMMIT", () => { S.result = null; act(s => update(s, true)); }, { primary: true });
+  const bOpen = f.button("UPDATE, no COMMIT", () => { S.result = null; act(s => update(s, false)); });
+  const bCkpt = f.button("CHECKPOINT", () => { S.result = null; act(s => checkpoint(s, "CHECKPOINT")); });
+  const bCrash = f.button("⚡ crash", () => { if (S.crashed) act(restart); else act(async () => crash(), true); });
+  f.segmented([["on", "synchronous_commit = on"], ["off", "off"]], "on", val => { syncCommit = val; }, { label: "synchronous_commit" });
+  f.button("reset", () => act(async () => {
+    fx.replaceChildren();
+    Object.values(W).forEach(w => lit(w));
+    Object.values(N).forEach(b => b.state("idle"));
+    fresh();
+  }, true));
+  function syncButtons() {
+    bCommit.disabled = bOpen.disabled = bCkpt.disabled = busy || S.crashed;
+    bCrash.textContent = S.crashed ? "↻ restart" : "⚡ crash";
+    bCrash.disabled = S.crashed && busy;
+  }
+
+  /* the background: the WAL writer flushes, and checkpoint_timeout starts a checkpoint */
+  f.loop((dt, t) => {
+    if (S.crashed) return;
+    if (!busy && t >= S.nextWal) {
+      S.nextWal = t + WALW_MS;
+      if (S.next - 1 > S.flushed) {
+        S.flushed = S.next - 1;
+        S.walFlash = t + 700;
+        render();
+        pop(fx, 712, 160, "WAL writer flush", C.soft, { size: 10.5 });
+      }
+    }
+    if (S.walFlash && t >= S.walFlash) { S.walFlash = 0; N.walw.state("idle"); }
+    if (!busy && t >= S.nextCkpt) { act(s => checkpoint(s, "checkpoint_timeout")); return; }
+    if (!S.inCkpt && !S.recovering) {
+      const sec = Math.max(0, Math.ceil((S.nextCkpt - t) / 1000));
+      if (sec !== lastSec) { lastSec = sec; N.ckpt.text(`next in ${sec} s`); }
+    } else lastSec = -1;
+  });
+
+  fresh();
+  render();
+  f.foot.append(
+    key(C.page, "clean page"), key(C.dirty, "dirty page"), key(C.wal, "WAL record"), key(C.ckpt, "checkpoint record"),
+    h("span", { class: "fig-note", text: "checkpoint every 30 s and WAL writer every 3 s here (5 min and 200 ms by default)" }),
+  );
+});
+
+})(window.Kit);
+} catch (err) { console.error(err); }
+window.Kit.figuresReady();
+</script>
+</body>
+</html>
