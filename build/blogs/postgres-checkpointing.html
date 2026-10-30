@@ -81,11 +81,7 @@ button { font: inherit; color: inherit; }
   max-width: var(--page); min-height: 100vh; margin: 0 auto; padding: 80px 0 0;
   display: flex; flex-direction: column; gap: 40px;
   border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-  /* backwards, not both: a finished animation must not leave a transform behind, or .page would
-     become the containing block for position: fixed (the side toc) */
-  animation: reveal .7s var(--ease) backwards;
 }
-@keyframes reveal { from { opacity: 0; filter: blur(10px); transform: translateY(20px); } }
 .hatch { height: 24px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background-image: var(--hatch); }
 .post { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
@@ -316,9 +312,8 @@ button { font: inherit; color: inherit; }
   .popover { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
+  /* figure animations carry meaning, so they always run */
   html { scroll-behavior: auto; }
-  /* only the page intro respects reduced motion; figure animations carry meaning, so they always run */
-  .page { animation: none; }
 }
 @media print {
   .progress, .to-top, .lab-wrap, .pager, .back { display: none !important; }
@@ -607,9 +602,13 @@ button { font: inherit; color: inherit; }
 <figcaption><a class="fig-num" href="#figure-crash">Figure 2</a> The same transaction, and the machine dies at two different points. Before the WAL flush, the client gets an error and nothing of the transaction survives. After the WAL flush, the change survives in the WAL and replay puts it back.</figcaption>
 </figure><aside class="callout note" role="note"><span class="callout-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span><div class="callout-title">No undo log</div><div class="callout-body"><p>Postgres doesn&#39;t have an undo log. Records of an unfinished transaction can still reach the SSD: a flush writes everything before the commit record, including other transactions&#39; records, and the WAL writer also flushes in the background. Replay applies those records too. But every row version has the id of the transaction that created it (<code>xmin</code>), and a transaction with no commit record is aborted, so those rows are invisible to every query. <a href="https://www.postgresql.org/docs/current/routine-vacuuming.html" target="_blank" rel="noopener"><code>VACUUM</code></a> cleans them up later.</p>
 </div></aside>
-<h2 id="so-what-is-a-checkpoint"><a class="anchor" href="#so-what-is-a-checkpoint" aria-label="Link to this section">#</a>So what is a <a href="https://www.postgresql.org/docs/current/wal-configuration.html" target="_blank" rel="noopener">checkpoint</a>?</h2>
-
-<p>It is a point in the WAL where every change before it is guaranteed to be in the table files. The checkpointer process does it like this:</p>
+<h2 id="so-what-is-a-checkpoint"><a class="anchor" href="#so-what-is-a-checkpoint" aria-label="Link to this section">#</a>So what is a checkpoint?</h2>
+<p>If a commit only needs the WAL, why not keep the dirty pages in memory forever? Two problems:</p>
+<ol>
+<li>the WAL keeps growing. we can&#39;t keep the whole book from start to end on the SSD.</li>
+<li>after a crash Postgres has to replay the WAL. if the pages haven&#39;t been written for a week, it has to replay a week of WAL, and the database is down for that whole time.</li>
+</ol>
+<p>A <a href="https://www.postgresql.org/docs/current/wal-configuration.html" target="_blank" rel="noopener">checkpoint</a> fixes both. It is a point in the WAL where every change before it is guaranteed to be in the table files. The checkpointer process does it like this:</p>
 <ol>
 <li>it notes the current WAL position. this is the <strong>redo point</strong>.</li>
 <li>it writes every page that was dirty at that moment to the table files, then <code>fsync</code>s them.</li>
