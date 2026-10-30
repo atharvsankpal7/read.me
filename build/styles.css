@@ -142,23 +142,6 @@ main {
     right: -6px;
 }
 
-/* Blur-up entrance */
-.reveal {
-    animation: reveal 0.7s var(--ease) backwards;
-}
-
-.reveal-2 {
-    animation-delay: 0.15s;
-}
-
-@keyframes reveal {
-    from {
-        opacity: 0;
-        filter: blur(10px);
-        transform: translateY(20px);
-    }
-}
-
 /* ---------- section bar ---------- */
 .topbar {
     position: sticky;
